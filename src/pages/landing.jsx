@@ -200,13 +200,13 @@ export default function Landing() {
 
         <div
           className={`mt-2 flex h-16 items-center rounded-full border-2 p-2 shadow-lg transition-all duration-500 ${
-            started ? "w-full max-w-xl" : "w-56"
+            started ? "w-full max-w-xl" : "w-25"
           } ${isDay ? "border-primary/50 bg-white/85" : "border-slate-100/40 bg-slate-900/40"}`}
         >
           {!started ? (
             <button
               onClick={() => setStarted(true)}
-              className={`h-full w-full rounded-full px-10 py-3 text-lg font-bold shadow-lg transition-all hover:scale-[1.02] active:scale-95 ${
+              className={`h-full w-full rounded-full px-10 py-2 text-lg font-bold shadow-lg transition-all hover:scale-[1.02] active:scale-95 ${
                 isDay
                   ? "bg-primary text-white shadow-primary/30 hover:bg-accent"
                   : "bg-surface text-slate-900 shadow-surface/40 hover:bg-accent"
