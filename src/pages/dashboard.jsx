@@ -198,12 +198,11 @@ export default function Dashboard() {
                 value={createServerName}
                 onChange={(event) => setCreateServerName(event.target.value)}
                 placeholder="Server Name"
-                onChange={(event) => setServerName(event.target.value)}
                 className={`h-14 flex-1 rounded-2xl border-2 ${isDay ? "border-primary/40" : "border-surface/40"} bg-white/85 px-4 text-xl font-semibold text-slate-800 placeholder:text-slate-500 outline-none`}
               />
               <button
-                onClick={() => openCatChooser("create")}
-                className={`h-14 rounded-2xl border-2 ${isDay ? "border-primary/40 bg-primary text-white hover:text-black" : "border-surface/40 bg-surface text-black"} px-10 font-card text-2xl font-black tracking-tight hover:bg-accent `}
+                onClick={handleCreateServer}
+                className={`h-14 rounded-2xl border-2 ${isDay ? "border-primary/40 bg-primary text-white hover:text-black" : "border-surface/40 bg-surface text-black"} px-10 font-card text-2xl font-black tracking-tight hover:bg-accent ${createServerName.trim() ? "" : "cursor-not-allowed opacity-50"}`}
               >
                 {isCreating ? "Creating..." : "Create"}
               </button>
@@ -212,7 +211,7 @@ export default function Dashboard() {
             <div className="flex flex-wrap items-center gap-x-7 gap-y-3 text-lg font-semibold text-slate-800">
               <div className="flex items-center gap-3">
                 <span>Type:</span>
-                <div className="inline-flex rounded-xl border-2 border-primary/40 bg-white/75 p-1">
+                <div className={`inline-flex rounded-xl border-2 ${isDay ? "border-primary/40" : "border-surface/40"} bg-white/75 p-1`}>
                   <button
                     onClick={() => setServerType("Public")}
                     className={`rounded-lg px-4 py-1 font-bold transition ${
@@ -247,7 +246,7 @@ export default function Dashboard() {
                     handlePlayerCountChange(event.target.value)
                   }
                   placeholder="1-12"
-                  className="h-10 w-24 rounded-xl border-2 border-primary/40 bg-white/80 px-3 text-center text-base font-bold text-slate-800 outline-none"
+                  className={`h-10 w-24 rounded-xl border-2 ${isDay ? "border-primary/40" : "border-surface/40"} bg-white/80 px-3 text-center text-base font-bold text-slate-800 outline-none`}
                 />
               </label>
             </div>
@@ -255,16 +254,16 @@ export default function Dashboard() {
         </section>
 
         <section className="mt-8">
-          <div className="inline-block rounded-t-[18px] border-4 border-b-0 border-primary/50 bg-[#e9e2d6] px-8 py-3 font-card text-3xl font-black tracking-tight text-slate-800">
+          <div className={`inline-block rounded-t-[18px] border-4 border-b-0 ${isDay ? "border-yellow-400/50 bg-yellow-100" : "border-slate-400/50 bg-slate-100"}  px-8 py-3 font-card text-3xl font-black tracking-tight text-slate-800`}>
             Join Server
           </div>
-          <div className="rounded-r-[24px] rounded-bl-[24px] border-4 border-primary/50 bg-white/30 p-5">
+          <div className={`rounded-r-[24px] rounded-bl-[24px] border-4 ${isDay ? "border-primary/50" : "border-surface/50"} bg-white/30 p-5`}>
             <div className="mb-4 flex gap-3">
               <input
                 value={serverCode}
                 onChange={(event) => setServerCode(event.target.value)}
                 placeholder="Join Server by Code"
-                className="h-14 flex-1 rounded-2xl border-2 border-primary/40 bg-white/85 px-4 text-xl font-semibold text-slate-800 placeholder:text-slate-500 outline-none"
+                className={`h-14 flex-1 rounded-2xl border-2 ${isDay ? "border-primary/40" : "border-surface/40"} bg-white/85 px-4 text-xl font-semibold text-slate-800 placeholder:text-slate-500 outline-none`}
               />
               <button
                 onClick={() => openCatChooser("join-by-code")}
@@ -279,16 +278,16 @@ export default function Dashboard() {
                 value={filterText}
                 onChange={(event) => setFilterText(event.target.value)}
                 placeholder="Filter server names"
-                className="h-12 min-w-[220px] flex-1 rounded-xl border-2 border-primary/40 bg-white/85 px-4 text-lg text-slate-800 outline-none"
+                className={`h-12 min-w-[220px] flex-1 rounded-xl border-2 ${isDay ? "border-primary/40" : "border-surface/40"} bg-white/85 px-4 text-lg text-slate-800 outline-none`}
               />
-              <button className="h-12 rounded-xl border-2 border-primary/40 bg-primary px-8 font-card text-xl font-black tracking-tight text-white transition hover:bg-accent">
+              <button className={`h-12 rounded-xl border-2 ${isDay ? "border-primary/40 bg-primary text-white hover:text-black" : "border-surface/40 bg-surface text-black"} px-8 font-card text-xl font-black tracking-tight transition hover:bg-accent`}>
                 Filter
               </button>
             </div>
 
             <div className="max-h-[340px] space-y-3 overflow-auto pr-2">
               {serversLoading && (
-                <p className="rounded-xl border-2 border-primary/30 bg-white/70 p-3 text-center font-semibold text-slate-700">
+                <p className={`rounded-xl border-2 ${isDay ? "border-primary/30" : "border-surface/30"} bg-white/70 p-3 text-center font-semibold text-slate-700`}>
                   Loading servers...
                 </p>
               )}
@@ -298,7 +297,7 @@ export default function Dashboard() {
                 </p>
               )}
               {!serversLoading && !serversError && filteredServers.length === 0 && (
-                <p className="rounded-xl border-2 border-primary/30 bg-white/70 p-3 text-center font-semibold text-slate-700">
+                <p className={`rounded-xl border-2 ${isDay ? "border-primary/30" : "border-surface/30"} bg-white/70 p-3 text-center font-semibold text-slate-700`}>
                   No servers found.
                 </p>
               )}
@@ -306,7 +305,7 @@ export default function Dashboard() {
               {filteredServers.map((server) => (
                 <article
                   key={server.id}
-                  className="flex items-center gap-3 rounded-2xl border-2 border-primary/40 bg-white/85 p-3"
+                  className={`flex items-center gap-3 rounded-2xl border-2 ${isDay ? "border-primary/40" : "border-surface/40"} bg-white/85 p-3`}
                 >
                   <div className="min-w-0 flex-1 py-1">
                     <p className="truncate text-xl font-semibold text-slate-800">
@@ -325,11 +324,11 @@ export default function Dashboard() {
                       joiningServerId === server.id ||
                       Number(server.totalMembers) >= Number(server.maxPlayers)
                     }
-                    className={`h-12 rounded-xl border-2 border-primary/40 px-8 font-card text-xl font-black tracking-tight transition ${
+                    className={`h-12 rounded-xl border-2 border-accent/40 text-black px-8 font-card text-xl font-black tracking-tight transition ${
                       joiningServerId === server.id ||
                       Number(server.totalMembers) >= Number(server.maxPlayers)
                         ? "cursor-not-allowed bg-slate-200 text-slate-500"
-                        : "bg-primary text-white hover:bg-accent"
+                        : isDay ? " bg-accent hover:bg-surface" : "bg-accent hover:bg-primary hover:text-white"
                     }`}
                   >
                     {joiningServerId === server.id
@@ -353,13 +352,13 @@ export default function Dashboard() {
         <div className="mt-7 flex items-center justify-between">
           <button
             onClick={() => navigate("/")}
-            className="h-14 w-44 rounded-2xl border-2 border-primary/40 bg-white/85 font-card text-2xl font-black tracking-tight text-slate-800 transition hover:bg-white"
+            className={`h-14 w-44 rounded-2xl border-2 ${isDay ? "border-primary/40" : "border-surface/40"} bg-white/85 font-card text-2xl font-black tracking-tight text-slate-800 transition hover:bg-white`}
           >
             Back
           </button>
           <button
             onClick={() => fetchServers(true)}
-            className="h-14 w-56 rounded-2xl border-2 border-primary/40 bg-primary font-card text-2xl font-black tracking-tight text-white transition hover:bg-accent"
+            className={`h-14 w-56 rounded-2xl border-2 ${isDay ? "border-primary/40 bg-primary text-white hover:text-black" : "border-surface/40 bg-surface text-black"}  font-card text-2xl font-black tracking-tight  transition hover:bg-accent`}
           >
             Refresh
           </button>
