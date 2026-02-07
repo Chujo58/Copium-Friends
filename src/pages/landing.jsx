@@ -130,7 +130,7 @@ export default function Landing() {
             ? "bg-primary text-white hover:bg-accent shadow-primary/30" 
             : "bg-surface text-white hover:bg-accent shadow-surface/40"
         }`}>
-            <p className={isDay ? "text-white" : "text-black"}>Join the Room</p>
+            <p className={isDay ? "text-white" : "text-black"}>Start</p>
         </button>
       </div>
 
