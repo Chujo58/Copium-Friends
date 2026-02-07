@@ -199,49 +199,59 @@ export default function Landing() {
         </p>
 
         <div
-          className={`mt-2 flex h-16 items-center rounded-full border-2 p-2 shadow-lg transition-all duration-500 ${
-            started ? "w-full max-w-xl" : "w-25"
-          } ${isDay ? "border-primary/50 bg-white/85" : "border-slate-100/40 bg-slate-900/40"}`}
+            className={`mt-2 flex h-16 items-center justify-center overflow-hidden rounded-full border-2 p-1 shadow-lg transition-all duration-700 ease-in-out ${
+                started ? "w-full max-w-md" : "w-28"
+            } ${isDay ? "border-primary/50 bg-white/85" : "border-slate-100/40 bg-slate-900/40"}`}
         >
-          {!started ? (
-            <button
-              onClick={() => setStarted(true)}
-              className={`h-full w-full rounded-full px-10 py-2 text-lg font-bold shadow-lg transition-all hover:scale-[1.02] active:scale-95 ${
-                isDay
-                  ? "bg-primary text-white shadow-primary/30 hover:bg-accent"
-                  : "bg-surface text-slate-900 shadow-surface/40 hover:bg-accent"
-              }`}
-            >
-              Start
-            </button>
-          ) : (
-            <>
-              <input
-                ref={inputRef}
-                value={username}
-                onChange={(event) => setUsername(event.target.value)}
-                onKeyDown={(event) => {
-                  if (event.key === "Enter") goToDashboard();
-                }}
-                placeholder="Type your username"
-                className={`h-full min-w-0 flex-1 rounded-full bg-transparent px-4 text-base font-semibold outline-none ${
-                  isDay
-                    ? "text-slate-900 placeholder:text-slate-500"
-                    : "text-slate-100 placeholder:text-slate-400"
+            <div className="relative h-full w-full">
+                {/* START BUTTON STATE */}
+                <button
+                onClick={() => setStarted(true)}
+                className={`absolute inset-0 flex items-center justify-center rounded-full text-lg font-bold transition-all duration-500 ${
+                    started 
+                    ? "pointer-events-none opacity-0 scale-95" 
+                    : "opacity-100 scale-100"
+                } ${
+                    isDay
+                    ? "bg-primary text-white"
+                    : "bg-surface text-slate-900"
                 }`}
-              />
-              <button
-                onClick={goToDashboard}
-                className={`ml-2 h-full rounded-full px-8 text-base font-bold transition ${
-                  isDay
-                    ? "bg-primary text-white hover:bg-accent"
-                    : "bg-surface text-slate-900 hover:bg-accent"
+                >
+                    Start
+                </button>
+
+                {/* INPUT FIELD STATE */}
+                <div
+                className={`flex h-full w-full items-center px-1 transition-all duration-500 delay-100 ${
+                    started 
+                    ? "opacity-100 scale-100" 
+                    : "pointer-events-none opacity-0 scale-95"
                 }`}
-              >
-                Go
-              </button>
-            </>
-          )}
+                >
+                    <input
+                        ref={inputRef}
+                        value={username}
+                        onChange={(event) => setUsername(event.target.value)}
+                        onKeyDown={(event) => event.key === "Enter" && goToDashboard()}
+                        placeholder="Type your username"
+                        className={`h-full min-w-0 flex-1 bg-transparent px-4 text-base font-semibold outline-none ${
+                        isDay
+                            ? "text-slate-900 placeholder:text-slate-500"
+                            : "text-white placeholder:text-slate-400"
+                        }`}
+                    />
+                    <button
+                        onClick={goToDashboard}
+                        className={`h-[85%] rounded-full px-6 text-sm font-bold transition-all active:scale-95 ${
+                        isDay
+                            ? "bg-primary text-white hover:bg-accent"
+                            : "bg-surface text-slate-900 hover:bg-accent"
+                        }`}
+                    >
+                        Go
+                    </button>
+                </div>
+            </div>
         </div>
       </div>
 
