@@ -109,7 +109,7 @@ export default function Landing() {
 
   const goToDashboard = () => {
     if (!username.trim()) return;
-    navigate("/dashboard", { state: { username: username.trim() } });
+    navigate("/dashboard", { state: { username: username.trim() }, viewTransition: true });
   };
 
   return (

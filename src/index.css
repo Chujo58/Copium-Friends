@@ -1,6 +1,16 @@
+@view-transition {
+  navigation: auto;
+}
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+/* Make the transition slower and smoother */
+::view-transition-group(root) {
+  animation-duration: 0.5s;
+  animation-timing-function: ease-in-out;
+}
 
 @keyframes cloud-flicker {
     0%,
