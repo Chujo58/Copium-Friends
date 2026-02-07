@@ -11,11 +11,15 @@ const demoServers = [
 export default function Dashboard() {
   const navigate = useNavigate();
   const location = useLocation();
+  const [serverName, setServerName] = useState("");
   const [serverCode, setServerCode] = useState("");
   const [filterText, setFilterText] = useState("");
   const [serverType, setServerType] = useState("Public");
   const [playerCount, setPlayerCount] = useState("8");
   const username = location.state?.username || "Guest";
+
+  const [errorMessageCreation, setErrorMessageCreation] = useState("");
+  const [errorMessageJoin, setErrorMessageJoin] = useState("");
 
   const filteredServers = useMemo(() => {
     const value = filterText.trim().toLowerCase();
@@ -36,6 +40,14 @@ export default function Dashboard() {
   }
 
   function openCatChooser(flowType) {
+    if (!serverName.trim() && flowType === "create") {
+      setErrorMessageCreation("Server name cannot be empty.");
+      return;
+    }
+    if (!serverCode.trim() && flowType === "join-by-code") {
+      setErrorMessageJoin("Server code cannot be empty.");
+      return;
+    }
     navigate("/choosecat1", {
       state: {
         username,
@@ -62,6 +74,7 @@ export default function Dashboard() {
             <div className="mb-4 flex gap-3">
               <input
                 placeholder="Server Name"
+                onChange={(event) => setServerName(event.target.value)}
                 className="h-14 flex-1 rounded-2xl border-2 border-primary/40 bg-white/85 px-4 text-xl font-semibold text-slate-800 placeholder:text-slate-500 outline-none"
               />
               <button
@@ -71,6 +84,10 @@ export default function Dashboard() {
                 Create
               </button>
             </div>
+
+            {errorMessageCreation && (
+              <p className="mb-4 text-sm font-semibold text-red-600">{errorMessageCreation}</p>
+            )}
 
             <div className="flex flex-wrap items-center gap-x-7 gap-y-3 text-lg font-semibold text-slate-800">
               <div className="flex items-center gap-3">
@@ -131,11 +148,15 @@ export default function Dashboard() {
               />
               <button
                 onClick={() => openCatChooser("join-by-code")}
-                className="h-14 rounded-2xl border-2 border-primary/40 bg-primary px-10 font-card text-2xl font-black tracking-tight text-white transition hover:bg-accent"
+                className="h-14 rounded-2xl border-2 border-primary/40 bg-primary px-10 font-card text-2xl font-black tracking-tight text-white transition hover:bg-accent hover:text-black"
               >
                 Join
               </button>
             </div>
+
+            {errorMessageJoin && (
+              <p className="mb-4 text-sm font-semibold text-red-600">{errorMessageJoin}</p>
+            )}
 
             <div className="mb-4 flex flex-wrap items-center gap-3 border-t-2 border-primary/25 pt-4">
               <input
@@ -144,12 +165,12 @@ export default function Dashboard() {
                 placeholder="Filter server names"
                 className="h-12 min-w-[220px] flex-1 rounded-xl border-2 border-primary/40 bg-white/85 px-4 text-lg text-slate-800 outline-none"
               />
-              <button className="h-12 rounded-xl border-2 border-primary/40 bg-primary px-8 font-card text-xl font-black tracking-tight text-white transition hover:bg-accent">
+              <button className="h-12 rounded-xl border-2 border-accent/40 bg-accent px-8 font-card text-xl font-black tracking-tight text-black transition hover:bg-surface">
                 Filter
               </button>
             </div>
 
-            <div className="max-h-[340px] space-y-3 overflow-auto pr-2">
+            <div className="max-h-[340px] space-y-3 overflow-auto ">
               {filteredServers.map((server) => (
                 <article
                   key={server.name}
@@ -165,7 +186,7 @@ export default function Dashboard() {
                   </p>
                   <button
                     onClick={() => openCatChooser("join-server")}
-                    className="h-12 rounded-xl border-2 border-primary/40 bg-primary px-8 font-card text-xl font-black tracking-tight text-white transition hover:bg-accent"
+                    className="h-12 rounded-xl border-2 border-accent/40 bg-accent px-8 font-card text-xl font-black tracking-tight text-black transition hover:bg-surface"
                   >
                     Join
                   </button>
