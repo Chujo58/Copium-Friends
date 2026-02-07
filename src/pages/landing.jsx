@@ -97,21 +97,6 @@ export default function Landing() {
   }, [manualMode]);
 
   useEffect(() => {
-    if (!manualMode) {
-      const checkTime = () => {
-        const hour = new Date().getHours();
-        setIsDay(hour >= 6 && hour < 18);
-      };
-      checkTime();
-      const timer = setInterval(checkTime, 60000);
-      return () => clearInterval(timer);
-    }
-  }, [manualMode]);
-
-  const toggleMode = () => {
-    setManualMode(true);
-    setIsDay(!isDay);
-  };
     if (started) {
       inputRef.current?.focus();
     }
