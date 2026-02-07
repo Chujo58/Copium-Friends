@@ -189,25 +189,21 @@ export default function Dashboard() {
         </p>
 
         <section>
-          <div className="inline-block rounded-t-[18px] border-4 border-b-0 border-primary/50 bg-primary px-8 py-3 font-card text-3xl font-black tracking-tight text-white">
+          <div className={`inline-block rounded-t-[18px] border-4 border-b-0  px-8 py-3 font-card text-3xl font-black tracking-tight ${isDay ? "border-primary/50 bg-primary text-white" : "border-surface/50 bg-surface text-slate-800"}`}>
             Create Server
           </div>
-          <div className="rounded-r-[24px] rounded-bl-[24px] border-4 border-primary/50 bg-white/30 p-5">
+          <div className={`rounded-r-[24px] rounded-bl-[24px] border-4 ${isDay ? "border-primary/50 " : "border-surface/50"} bg-white/30 p-5`}>
             <div className="mb-4 flex gap-3">
               <input
                 value={createServerName}
                 onChange={(event) => setCreateServerName(event.target.value)}
                 placeholder="Server Name"
-                className="h-14 flex-1 rounded-2xl border-2 border-primary/40 bg-white/85 px-4 text-xl font-semibold text-slate-800 placeholder:text-slate-500 outline-none"
+                onChange={(event) => setServerName(event.target.value)}
+                className={`h-14 flex-1 rounded-2xl border-2 ${isDay ? "border-primary/40" : "border-surface/40"} bg-white/85 px-4 text-xl font-semibold text-slate-800 placeholder:text-slate-500 outline-none`}
               />
               <button
-                onClick={handleCreateServer}
-                disabled={!createServerName.trim() || isCreating}
-                className={`h-14 rounded-2xl border-2 border-primary/40 px-8 font-card text-2xl font-black tracking-tight transition ${
-                  createServerName.trim() && !isCreating
-                    ? "bg-white/90 text-slate-800 hover:bg-white"
-                    : "cursor-not-allowed bg-slate-200/70 text-slate-500"
-                }`}
+                onClick={() => openCatChooser("create")}
+                className={`h-14 rounded-2xl border-2 ${isDay ? "border-primary/40 bg-primary text-white hover:text-black" : "border-surface/40 bg-surface text-black"} px-10 font-card text-2xl font-black tracking-tight hover:bg-accent `}
               >
                 {isCreating ? "Creating..." : "Create"}
               </button>
@@ -221,7 +217,7 @@ export default function Dashboard() {
                     onClick={() => setServerType("Public")}
                     className={`rounded-lg px-4 py-1 font-bold transition ${
                       serverType === "Public"
-                        ? "bg-primary text-white"
+                        ? isDay ? "bg-primary text-white" : "bg-surface text-black"
                         : "text-slate-700 hover:bg-white"
                     }`}
                   >
@@ -271,15 +267,10 @@ export default function Dashboard() {
                 className="h-14 flex-1 rounded-2xl border-2 border-primary/40 bg-white/85 px-4 text-xl font-semibold text-slate-800 placeholder:text-slate-500 outline-none"
               />
               <button
-                onClick={handleJoinByCode}
-                disabled={!serverCode.trim() || isJoiningByCode}
-                className={`h-14 rounded-2xl border-2 border-primary/40 px-10 font-card text-2xl font-black tracking-tight transition ${
-                  serverCode.trim() && !isJoiningByCode
-                    ? "bg-primary text-white hover:bg-accent"
-                    : "cursor-not-allowed bg-slate-200 text-slate-500"
-                }`}
+                onClick={() => openCatChooser("join-by-code")}
+                className={`h-14 rounded-2xl border-2 ${isDay ? "border-primary/40 bg-primary text-white hover:text-black" : "border-surface/40 bg-surface text-black"} px-10 font-card text-2xl font-black tracking-tight hover:bg-accent `}
               >
-                {isJoiningByCode ? "Joining..." : "Join"}
+                Join
               </button>
             </div>
 
