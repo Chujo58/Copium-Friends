@@ -19,7 +19,7 @@ export default function ChooseCat2() {
 
   function goNext() {
     if (!selectedAction) return;
-    setExitDirection("right");
+    setExitDirection("left");
     setIsExiting(true);
     window.setTimeout(() => {
       navigate("/choosecat3", {
@@ -33,7 +33,7 @@ export default function ChooseCat2() {
   }
 
   function goBack() {
-    setExitDirection("left");
+    setExitDirection("right");
     setIsExiting(true);
     window.setTimeout(() => {
       navigate("/choosecat1", {

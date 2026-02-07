@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import { Cloud, Moon, Sun } from "lucide-react";
 import { useNavigate } from "react-router-dom";
+import { getStoredUsername, setStoredUsername } from "../lib/identity";
 
 import { useTheme } from "../theme-context.jsx";
 
@@ -83,7 +84,7 @@ export default function Landing() {
   const navigate = useNavigate();
   const { isDay, toggleMode } = useTheme();
   const [started, setStarted] = useState(false);
-  const [username, setUsername] = useState("");
+  const [username, setUsername] = useState(() => getStoredUsername());
   const inputRef = useRef(null);
 
   useEffect(() => {
@@ -94,7 +95,9 @@ export default function Landing() {
 
   const goToDashboard = () => {
     if (!username.trim()) return;
-    navigate("/dashboard", { state: { username: username.trim() }, viewTransition: true });
+    const normalized = username.trim();
+    setStoredUsername(normalized);
+    navigate("/dashboard", { state: { username: normalized } });
   };
 
   return (
