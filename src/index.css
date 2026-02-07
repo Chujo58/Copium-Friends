@@ -2,6 +2,20 @@
 @tailwind components;
 @tailwind utilities;
 
+@keyframes cloud-flicker {
+    0%,
+    100% {
+        opacity: 0.75;
+    }
+    50% {
+        opacity: 0.4;
+    }
+}
+
+.cloud-layer {
+    animation: cloud-flicker 6s ease-in-out infinite;
+}
+
 .main-header {
     @apply font-bold uppercase tracking-widest;
 }
