@@ -6,6 +6,51 @@
     @apply font-bold uppercase tracking-widest;
 }
 
+@keyframes catPageEnter {
+    from {
+        opacity: 0;
+        transform: translateX(28px);
+    }
+    to {
+        opacity: 1;
+        transform: translateX(0);
+    }
+}
+
+@keyframes catPageExitRight {
+    from {
+        opacity: 1;
+        transform: translateX(0);
+    }
+    to {
+        opacity: 0;
+        transform: translateX(110%);
+    }
+}
+
+@keyframes catPageExitLeft {
+    from {
+        opacity: 1;
+        transform: translateX(0);
+    }
+    to {
+        opacity: 0;
+        transform: translateX(-110%);
+    }
+}
+
+.cat-page-enter {
+    animation: catPageEnter 280ms ease forwards;
+}
+
+.cat-page-exit-right {
+    animation: catPageExitRight 280ms ease forwards;
+}
+
+.cat-page-exit-left {
+    animation: catPageExitLeft 280ms ease forwards;
+}
+
 @layer components {
     form label {
         @apply block font-medium text-rose-dusty;
