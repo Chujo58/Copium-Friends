@@ -11,6 +11,7 @@ const demoServers = [
 export default function Dashboard() {
   const navigate = useNavigate();
   const location = useLocation();
+  const [createServerName, setCreateServerName] = useState("");
   const [serverCode, setServerCode] = useState("");
   const [filterText, setFilterText] = useState("");
   const [serverType, setServerType] = useState("Public");
@@ -35,11 +36,30 @@ export default function Dashboard() {
     setPlayerCount(String(Math.min(12, Math.max(1, numeric))));
   }
 
-  function openCatChooser(flowType) {
+  function openCatChooser(flowType, serverNameOverride = "") {
+    let serverName = serverNameOverride.trim();
+    if (!serverName) {
+      if (flowType === "create") {
+        serverName = createServerName.trim();
+        if (!serverName) return;
+      } else if (flowType === "join-by-code") {
+        serverName = serverCode.trim() || "Joined Server";
+      } else {
+        serverName = "Joined Server";
+      }
+    }
+
+    try {
+      sessionStorage.setItem("activeServerName", serverName);
+    } catch (error) {
+      // Ignore storage errors.
+    }
+
     navigate("/choosecat1", {
       state: {
         username,
         flowType,
+        serverName,
       },
     });
   }
@@ -61,12 +81,19 @@ export default function Dashboard() {
           <div className="rounded-r-[24px] rounded-bl-[24px] border-4 border-primary/50 bg-white/30 p-5">
             <div className="mb-4 flex gap-3">
               <input
+                value={createServerName}
+                onChange={(event) => setCreateServerName(event.target.value)}
                 placeholder="Server Name"
                 className="h-14 flex-1 rounded-2xl border-2 border-primary/40 bg-white/85 px-4 text-xl font-semibold text-slate-800 placeholder:text-slate-500 outline-none"
               />
               <button
                 onClick={() => openCatChooser("create")}
-                className="h-14 rounded-2xl border-2 border-primary/40 bg-white/90 px-8 font-card text-2xl font-black tracking-tight text-slate-800 transition hover:bg-white"
+                disabled={!createServerName.trim()}
+                className={`h-14 rounded-2xl border-2 border-primary/40 px-8 font-card text-2xl font-black tracking-tight transition ${
+                  createServerName.trim()
+                    ? "bg-white/90 text-slate-800 hover:bg-white"
+                    : "cursor-not-allowed bg-slate-200/70 text-slate-500"
+                }`}
               >
                 Create
               </button>
@@ -164,7 +191,7 @@ export default function Dashboard() {
                     {server.players}
                   </p>
                   <button
-                    onClick={() => openCatChooser("join-server")}
+                    onClick={() => openCatChooser("join-server", server.name)}
                     className="h-12 rounded-xl border-2 border-primary/40 bg-primary px-8 font-card text-xl font-black tracking-tight text-white transition hover:bg-accent"
                   >
                     Join

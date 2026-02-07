@@ -1,16 +1,36 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { actionOptions, catOptions } from "./catFlowOptions";
 
 export default function Session() {
+  const CAT_SIZE = 160;
   const navigate = useNavigate();
   const location = useLocation();
   const selectedCat = location.state?.selectedCat || catOptions[0].id;
   const selectedAction = location.state?.selectedAction || actionOptions[0].id;
+  const serverName = (() => {
+    const fromState = location.state?.serverName?.trim();
+    if (fromState) return fromState;
+    try {
+      const saved = sessionStorage.getItem("activeServerName")?.trim();
+      if (saved) return saved;
+    } catch (error) {
+      // Ignore storage errors.
+    }
+    return "My Server";
+  })();
   const [showNewTabForm, setShowNewTabForm] = useState(false);
   const [newTabName, setNewTabName] = useState("");
   const [newTabUrl, setNewTabUrl] = useState("");
   const [customTabs, setCustomTabs] = useState([]);
+  const [catPos, setCatPos] = useState({ x: 80, y: 90 });
+  const [isDraggingCat, setIsDraggingCat] = useState(false);
+  const stageRef = useRef(null);
+  const dragRef = useRef({
+    dragging: false,
+    offsetX: 0,
+    offsetY: 0,
+  });
 
   const finalCat = useMemo(() => {
     return catOptions.find((cat) => cat.id === selectedCat) || catOptions[0];
@@ -52,6 +72,51 @@ export default function Session() {
       // Ignore invalid URLs and keep the form open for correction.
     }
   }
+
+  function clampCatPosition(x, y) {
+    const rect = stageRef.current?.getBoundingClientRect();
+    if (!rect) return { x, y };
+    return {
+      x: Math.max(0, Math.min(x, rect.width - CAT_SIZE)),
+      y: Math.max(0, Math.min(y, rect.height - CAT_SIZE)),
+    };
+  }
+
+  function startDrag(event) {
+    const rect = stageRef.current?.getBoundingClientRect();
+    if (!rect) return;
+    dragRef.current.dragging = true;
+    dragRef.current.offsetX = event.clientX - rect.left - catPos.x;
+    dragRef.current.offsetY = event.clientY - rect.top - catPos.y;
+    setIsDraggingCat(true);
+  }
+
+  useEffect(() => {
+    function handlePointerMove(event) {
+      if (!dragRef.current.dragging) return;
+      const rect = stageRef.current?.getBoundingClientRect();
+      if (!rect) return;
+      const nextX = event.clientX - rect.left - dragRef.current.offsetX;
+      const nextY = event.clientY - rect.top - dragRef.current.offsetY;
+      setCatPos(clampCatPosition(nextX, nextY));
+    }
+
+    function stopDrag() {
+      if (!dragRef.current.dragging) return;
+      dragRef.current.dragging = false;
+      setIsDraggingCat(false);
+    }
+
+    window.addEventListener("pointermove", handlePointerMove);
+    window.addEventListener("pointerup", stopDrag);
+    window.addEventListener("pointercancel", stopDrag);
+
+    return () => {
+      window.removeEventListener("pointermove", handlePointerMove);
+      window.removeEventListener("pointerup", stopDrag);
+      window.removeEventListener("pointercancel", stopDrag);
+    };
+  }, []);
 
   return (
     <div className="relative flex min-h-screen items-center justify-center overflow-hidden bg-gradient-to-t from-[#88A7BE] via-[#A6C0D2] to-[#C8D8E3] px-4 py-8">
@@ -140,26 +205,49 @@ export default function Session() {
           </div>
         </aside>
 
-        <main className="flex-1 rounded-[2.5rem] border-4 border-primary/40 bg-surface/40 p-8 text-center shadow-2xl backdrop-blur-xl">
-          <h1 className="font-card text-5xl font-black tracking-tight text-slate-900">
-            Session
-          </h1>
-          <p className="mt-3 text-xl font-semibold text-slate-700">
-            {finalCat.name} is ready in {actionName}.
-          </p>
-
-          <img
-            src={finalCat.gif}
-            alt={`Session cat ${finalCat.name}`}
-            className="mx-auto mt-7 h-64 w-full max-w-lg rounded-2xl border-2 border-primary/40 object-cover"
-          />
-
-          <button
-            onClick={() => navigate("/dashboard")}
-            className="mt-8 h-14 w-full max-w-sm rounded-2xl border-2 border-primary/40 bg-primary font-card text-2xl font-black tracking-tight text-white transition hover:bg-accent"
+        <main className="flex-1 rounded-[2.5rem] border-4 border-primary/40 bg-surface/40 p-5 shadow-2xl backdrop-blur-xl">
+          <div
+            ref={stageRef}
+            className="relative h-[72vh] w-full overflow-hidden rounded-[2rem] border-2 border-primary/35 bg-cover bg-center bg-no-repeat"
+            style={{ backgroundImage: "url('/background.jpg')" }}
           >
-            Back To Dashboard
-          </button>
+            <div className="absolute left-4 top-4 rounded-xl border border-white/40 bg-slate-900/45 px-4 py-3 text-white backdrop-blur-sm">
+              <p className="font-card text-2xl font-black tracking-tight">
+                {serverName}
+              </p>
+              <p className="text-sm font-semibold">
+                {finalCat.name} · {actionName}
+              </p>
+            </div>
+
+            <img
+              src={finalCat.gif}
+              alt={`Session cat ${finalCat.name}`}
+              onPointerDown={startDrag}
+              className={`absolute select-none bg-transparent object-contain ${
+                isDraggingCat ? "cursor-grabbing" : "cursor-grab"
+              }`}
+              style={{
+                width: `${CAT_SIZE}px`,
+                height: `${CAT_SIZE}px`,
+                left: `${catPos.x}px`,
+                top: `${catPos.y}px`,
+                touchAction: "none",
+              }}
+              draggable={false}
+            />
+
+            <div className="absolute bottom-4 left-4 rounded-lg border border-white/50 bg-white/70 px-3 py-2 text-sm font-semibold text-slate-800">
+              Drag the cat anywhere on the session background.
+            </div>
+
+            <button
+              onClick={() => navigate("/dashboard")}
+              className="absolute bottom-4 right-4 h-12 rounded-xl border-2 border-primary/45 bg-primary px-6 font-card text-xl font-black tracking-tight text-white transition hover:bg-accent"
+            >
+              Back
+            </button>
+          </div>
         </main>
       </div>
     </div>

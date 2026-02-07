@@ -21,7 +21,7 @@ export default function ChooseCat3() {
   }, [selectedAction]);
 
   function goBack() {
-    setExitDirection("left");
+    setExitDirection("right");
     setIsExiting(true);
     window.setTimeout(() => {
       navigate("/choosecat2", {
@@ -35,7 +35,7 @@ export default function ChooseCat3() {
   }
 
   function goReady() {
-    setExitDirection("right");
+    setExitDirection("left");
     setIsExiting(true);
     window.setTimeout(() => {
       navigate("/session", {
