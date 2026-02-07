@@ -1,0 +1,25 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+.main-header {
+    @apply font-bold uppercase tracking-widest;
+}
+
+@layer components {
+    form label {
+        @apply block font-medium text-rose-dusty;
+    }
+
+    form input {
+        @apply mt-1 block w-full border border-rose-dusty/30 rounded-md shadow-sm p-2 focus:outline-none focus:border-rose-dusty focus:ring-2 focus:ring-rose-dusty/40;
+    }
+
+    form button {
+        @apply w-full bg-primary font-card main-header text-white py-2 rounded hover:bg-accent transition hover:ring-2 hover:ring-accent/40;
+    }
+
+    form textarea {
+        @apply block w-full border border-rose-dusty/30 rounded-md shadow-sm p-2 focus:outline-none focus:border-rose-dusty focus:ring-2 focus:ring-rose-dusty/40;
+    }
+}
