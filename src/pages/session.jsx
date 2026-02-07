@@ -2,7 +2,8 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { actionOptions, catOptions } from "./catFlowOptions";
 import { io } from "socket.io-client";
-import { getServer } from "../lib/api";
+import { getServer, leaveServer } from "../lib/api";
+import { getStoredUsername } from "../lib/identity";
 
 export default function Session() {
   const CAT_SIZE = 160;
@@ -36,13 +37,15 @@ export default function Session() {
   const [members, setMembers] = useState([]);
   const [membersError, setMembersError] = useState("");
   const [realtimeStatus, setRealtimeStatus] = useState("offline");
-  const [catPos, setCatPos] = useState({ x: 80, y: 90 });
   const [isDraggingCat, setIsDraggingCat] = useState(false);
+  const [isLeaving, setIsLeaving] = useState(false);
   const stageRef = useRef(null);
+  const socketRef = useRef(null);
   const dragRef = useRef({
     dragging: false,
     offsetX: 0,
     offsetY: 0,
+    memberId: "",
   });
 
   const finalCat = useMemo(() => {
@@ -53,6 +56,11 @@ export default function Session() {
     const found = actionOptions.find((action) => action.id === selectedAction);
     return found ? found.name : actionOptions[0].name;
   }, [selectedAction]);
+
+  const ownMember = useMemo(
+    () => members.find((member) => member.id === memberId) || null,
+    [memberId, members],
+  );
 
   const menuItems = [
     { id: "flashcards", label: "Flashcards", icon: "🗂️" },
@@ -128,12 +136,18 @@ export default function Session() {
       path: "/socket.io",
       transports: ["websocket", "polling"],
     });
+    socketRef.current = socket;
 
     setRealtimeStatus("connecting");
     setMembersError("");
 
     socket.on("connect", () => {
-      socket.emit("server:subscribe", { serverId, memberId });
+      socket.emit("server:subscribe", {
+        serverId,
+        memberId,
+        selectedCat,
+        selectedAction,
+      });
     });
 
     socket.on("server:subscribed", (payload) => {
@@ -165,8 +179,9 @@ export default function Session() {
     return () => {
       socket.emit("server:unsubscribe");
       socket.disconnect();
+      socketRef.current = null;
     };
-  }, [memberId, serverId]);
+  }, [memberId, selectedAction, selectedCat, serverId]);
 
   function clampCatPosition(x, y) {
     const rect = stageRef.current?.getBoundingClientRect();
@@ -177,12 +192,14 @@ export default function Session() {
     };
   }
 
-  function startDrag(event) {
+  function startDrag(member, event) {
+    if (!member || member.id !== memberId) return;
     const rect = stageRef.current?.getBoundingClientRect();
     if (!rect) return;
     dragRef.current.dragging = true;
-    dragRef.current.offsetX = event.clientX - rect.left - catPos.x;
-    dragRef.current.offsetY = event.clientY - rect.top - catPos.y;
+    dragRef.current.memberId = member.id;
+    dragRef.current.offsetX = event.clientX - rect.left - (member.x ?? 80);
+    dragRef.current.offsetY = event.clientY - rect.top - (member.y ?? 90);
     setIsDraggingCat(true);
   }
 
@@ -193,12 +210,23 @@ export default function Session() {
       if (!rect) return;
       const nextX = event.clientX - rect.left - dragRef.current.offsetX;
       const nextY = event.clientY - rect.top - dragRef.current.offsetY;
-      setCatPos(clampCatPosition(nextX, nextY));
+      const clamped = clampCatPosition(nextX, nextY);
+
+      setMembers((prevMembers) =>
+        prevMembers.map((member) =>
+          member.id === dragRef.current.memberId
+            ? { ...member, x: clamped.x, y: clamped.y }
+            : member,
+        ),
+      );
+
+      socketRef.current?.emit("server:move", clamped);
     }
 
     function stopDrag() {
       if (!dragRef.current.dragging) return;
       dragRef.current.dragging = false;
+      dragRef.current.memberId = "";
       setIsDraggingCat(false);
     }
 
@@ -212,6 +240,50 @@ export default function Session() {
       window.removeEventListener("pointercancel", stopDrag);
     };
   }, []);
+
+  function getCatGif(member) {
+    const selected = catOptions.find((cat) => cat.id === member.selectedCat);
+    if (selected?.gif) return selected.gif;
+    return finalCat.gif;
+  }
+
+  async function leaveAndGoBack() {
+    if (isLeaving) return;
+    setIsLeaving(true);
+
+    let left = false;
+    const socket = socketRef.current;
+    if (socket?.connected) {
+      left = await new Promise((resolve) => {
+        const timeout = window.setTimeout(() => resolve(false), 500);
+        socket.emit("server:leave", {}, (result) => {
+          window.clearTimeout(timeout);
+          resolve(Boolean(result?.ok));
+        });
+      });
+    }
+
+    if (!left && serverId && memberId) {
+      try {
+        await leaveServer({ serverId, memberId });
+        left = true;
+      } catch (error) {
+        // Fallback just navigates even if leave request fails.
+      }
+    }
+
+    try {
+      sessionStorage.removeItem("activeServerId");
+      sessionStorage.removeItem("activeServerCode");
+      sessionStorage.removeItem("activeMemberId");
+    } catch (error) {
+      // Ignore storage errors.
+    }
+
+    navigate("/dashboard", {
+      state: { username: getStoredUsername() || "Guest" },
+    });
+  }
 
   return (
     <div className="relative flex min-h-screen items-center justify-center overflow-hidden bg-gradient-to-t from-[#88A7BE] via-[#A6C0D2] to-[#C8D8E3] px-4 py-8">
@@ -353,36 +425,59 @@ export default function Session() {
                 {serverName}
               </p>
               <p className="text-sm font-semibold">
-                {finalCat.name} · {actionName}
+                {ownMember?.username || finalCat.name} · {actionName}
               </p>
             </div>
 
-            <img
-              src={finalCat.gif}
-              alt={`Session cat ${finalCat.name}`}
-              onPointerDown={startDrag}
-              className={`absolute select-none bg-transparent object-contain ${
-                isDraggingCat ? "cursor-grabbing" : "cursor-grab"
-              }`}
-              style={{
-                width: `${CAT_SIZE}px`,
-                height: `${CAT_SIZE}px`,
-                left: `${catPos.x}px`,
-                top: `${catPos.y}px`,
-                touchAction: "none",
-              }}
-              draggable={false}
-            />
+            {members.filter((member) => member.online).map((member) => {
+              const isSelf = member.id === memberId;
+              return (
+                <div
+                  key={member.id}
+                  className="absolute"
+                  style={{
+                    left: `${member.x ?? 80}px`,
+                    top: `${member.y ?? 90}px`,
+                    width: `${CAT_SIZE}px`,
+                    height: `${CAT_SIZE + 24}px`,
+                  }}
+                >
+                  <img
+                    src={getCatGif(member)}
+                    alt={`${member.username} character`}
+                    onPointerDown={(event) => startDrag(member, event)}
+                    className={`select-none bg-transparent object-contain ${
+                      isSelf
+                        ? isDraggingCat
+                          ? "cursor-grabbing"
+                          : "cursor-grab"
+                        : "pointer-events-none cursor-default"
+                    }`}
+                    style={{
+                      width: `${CAT_SIZE}px`,
+                      height: `${CAT_SIZE}px`,
+                      touchAction: "none",
+                    }}
+                    draggable={false}
+                  />
+                  <p className="mt-1 text-center text-xs font-bold text-white drop-shadow-md">
+                    {member.username}
+                    {isSelf ? " (You)" : ""}
+                  </p>
+                </div>
+              );
+            })}
 
             <div className="absolute bottom-4 left-4 rounded-lg border border-white/50 bg-white/70 px-3 py-2 text-sm font-semibold text-slate-800">
-              Drag the cat anywhere on the session background.
+              Drag only your own character. Everyone can see movement live.
             </div>
 
             <button
-              onClick={() => navigate("/dashboard")}
+              onClick={leaveAndGoBack}
+              disabled={isLeaving}
               className="absolute bottom-4 right-4 h-12 rounded-xl border-2 border-primary/45 bg-primary px-6 font-card text-xl font-black tracking-tight text-white transition hover:bg-accent"
             >
-              Back
+              {isLeaving ? "Leaving..." : "Back"}
             </button>
           </div>
         </main>

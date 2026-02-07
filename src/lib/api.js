@@ -43,3 +43,10 @@ export function joinServerByCode(payload) {
     body: JSON.stringify(payload),
   });
 }
+
+export function leaveServer(payload) {
+  return request("/api/servers/leave", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}

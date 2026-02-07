@@ -5,6 +5,7 @@ import {
   joinServerByCode,
   listServers,
 } from "../lib/api";
+import { getStoredUsername, setStoredUsername } from "../lib/identity";
 
 export default function Dashboard() {
   const navigate = useNavigate();
@@ -21,7 +22,17 @@ export default function Dashboard() {
   const [isCreating, setIsCreating] = useState(false);
   const [isJoiningByCode, setIsJoiningByCode] = useState(false);
   const [joiningServerId, setJoiningServerId] = useState("");
-  const username = location.state?.username || "Guest";
+  const username = (
+    location.state?.username?.trim() ||
+    getStoredUsername() ||
+    "Guest"
+  ).trim();
+
+  useEffect(() => {
+    if (username && username !== "Guest") {
+      setStoredUsername(username);
+    }
+  }, [username]);
 
   const filteredServers = useMemo(() => {
     const value = filterText.trim().toLowerCase();

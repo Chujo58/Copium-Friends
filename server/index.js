@@ -39,6 +39,10 @@ function normalizeName(value, fallback = "Guest") {
   return text || fallback;
 }
 
+function normalizeUsernameKey(username) {
+  return normalizeName(username, "").toLowerCase();
+}
+
 function roomName(serverId) {
   return `server:${serverId}`;
 }
@@ -48,6 +52,10 @@ function serializeMember(member) {
     id: member.id,
     username: member.username,
     online: Boolean(member.online),
+    selectedCat: member.selectedCat || null,
+    selectedAction: member.selectedAction || null,
+    x: Number.isFinite(member.x) ? member.x : 80,
+    y: Number.isFinite(member.y) ? member.y : 90,
     joinedAt: member.joinedAt,
   };
 }
@@ -73,10 +81,38 @@ function createMember(server, username) {
     username: normalizeName(username),
     online: false,
     socketId: null,
+    selectedCat: null,
+    selectedAction: null,
+    x: 80,
+    y: 90,
     joinedAt: Date.now(),
   };
   server.members.set(member.id, member);
   return member;
+}
+
+function removeMemberFromServer(serverId, memberId) {
+  const server = servers.get(serverId);
+  if (!server) return false;
+  return server.members.delete(memberId);
+}
+
+function isUsernameTaken(username, excludeMemberId = "") {
+  const key = normalizeUsernameKey(username);
+  if (!key) return false;
+  for (const server of servers.values()) {
+    for (const member of server.members.values()) {
+      if (member.id === excludeMemberId) continue;
+      if (normalizeUsernameKey(member.username) === key) return true;
+    }
+  }
+  return false;
+}
+
+function safeCoordinate(value, fallback = 0) {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) return fallback;
+  return Math.max(0, Math.min(5000, numeric));
 }
 
 function broadcastMembers(serverId) {
@@ -139,6 +175,10 @@ app.post("/api/servers", (req, res) => {
     res.status(400).json({ error: "Server name is required" });
     return;
   }
+  if (isUsernameTaken(username)) {
+    res.status(409).json({ error: "Username already taken. Choose another one." });
+    return;
+  }
 
   const requestedType = String(req.body?.type || "Public").toLowerCase();
   const type = requestedType === "private" ? "Private" : "Public";
@@ -176,6 +216,10 @@ app.post("/api/servers/join", (req, res) => {
     res.status(400).json({ error: "Join code is required" });
     return;
   }
+  if (isUsernameTaken(username)) {
+    res.status(409).json({ error: "Username already taken. Choose another one." });
+    return;
+  }
 
   const serverId = codeToServerId.get(code);
   if (!serverId || !servers.has(serverId)) {
@@ -196,10 +240,30 @@ app.post("/api/servers/join", (req, res) => {
   });
 });
 
+app.post("/api/servers/leave", (req, res) => {
+  const serverId = String(req.body?.serverId || "").trim();
+  const memberId = String(req.body?.memberId || "").trim();
+  if (!serverId || !memberId) {
+    res.status(400).json({ error: "serverId and memberId are required" });
+    return;
+  }
+
+  const removed = removeMemberFromServer(serverId, memberId);
+  if (!removed) {
+    res.status(404).json({ error: "Member not found in server" });
+    return;
+  }
+
+  broadcastMembers(serverId);
+  res.json({ ok: true });
+});
+
 io.on("connection", (socket) => {
   socket.on("server:subscribe", (payload = {}) => {
     const serverId = String(payload.serverId || "");
     const memberId = String(payload.memberId || "");
+    const selectedCat = String(payload.selectedCat || "").trim();
+    const selectedAction = String(payload.selectedAction || "").trim();
     const server = servers.get(serverId);
 
     if (!server) {
@@ -219,12 +283,43 @@ io.on("connection", (socket) => {
     socketPresence.set(socket.id, { serverId, memberId });
     member.online = true;
     member.socketId = socket.id;
+    if (selectedCat) member.selectedCat = selectedCat;
+    if (selectedAction) member.selectedAction = selectedAction;
 
     socket.emit("server:subscribed", {
       server: serializeServer(server),
       member: serializeMember(member),
     });
     broadcastMembers(serverId);
+  });
+
+  socket.on("server:move", (payload = {}) => {
+    const presence = socketPresence.get(socket.id);
+    if (!presence) return;
+    const server = servers.get(presence.serverId);
+    if (!server) return;
+    const member = server.members.get(presence.memberId);
+    if (!member) return;
+
+    member.x = safeCoordinate(payload.x, member.x);
+    member.y = safeCoordinate(payload.y, member.y);
+    broadcastMembers(presence.serverId);
+  });
+
+  socket.on("server:leave", (_payload = {}, callback) => {
+    const presence = socketPresence.get(socket.id);
+    if (!presence) {
+      if (typeof callback === "function") callback({ ok: true });
+      return;
+    }
+
+    const { serverId, memberId } = presence;
+    socket.leave(roomName(serverId));
+    socketPresence.delete(socket.id);
+    removeMemberFromServer(serverId, memberId);
+    broadcastMembers(serverId);
+
+    if (typeof callback === "function") callback({ ok: true });
   });
 
   socket.on("server:unsubscribe", () => {
