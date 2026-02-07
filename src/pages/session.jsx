@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { actionOptions, catOptions } from "./catFlowOptions";
+import { io } from "socket.io-client";
+import { getServer } from "../lib/api";
 
 export default function Session() {
   const CAT_SIZE = 160;
@@ -8,7 +10,7 @@ export default function Session() {
   const location = useLocation();
   const selectedCat = location.state?.selectedCat || catOptions[0].id;
   const selectedAction = location.state?.selectedAction || actionOptions[0].id;
-  const serverName = (() => {
+  const initialServerName = (() => {
     const fromState = location.state?.serverName?.trim();
     if (fromState) return fromState;
     try {
@@ -19,10 +21,21 @@ export default function Session() {
     }
     return "My Server";
   })();
+  const serverId =
+    location.state?.serverId || sessionStorage.getItem("activeServerId") || "";
+  const memberId =
+    location.state?.memberId || sessionStorage.getItem("activeMemberId") || "";
+  const [serverName, setServerName] = useState(initialServerName);
+  const [serverCode, setServerCode] = useState(
+    location.state?.serverCode || sessionStorage.getItem("activeServerCode") || "",
+  );
   const [showNewTabForm, setShowNewTabForm] = useState(false);
   const [newTabName, setNewTabName] = useState("");
   const [newTabUrl, setNewTabUrl] = useState("");
   const [customTabs, setCustomTabs] = useState([]);
+  const [members, setMembers] = useState([]);
+  const [membersError, setMembersError] = useState("");
+  const [realtimeStatus, setRealtimeStatus] = useState("offline");
   const [catPos, setCatPos] = useState({ x: 80, y: 90 });
   const [isDraggingCat, setIsDraggingCat] = useState(false);
   const stageRef = useRef(null);
@@ -72,6 +85,88 @@ export default function Session() {
       // Ignore invalid URLs and keep the form open for correction.
     }
   }
+
+  useEffect(() => {
+    try {
+      if (serverId) sessionStorage.setItem("activeServerId", serverId);
+      if (memberId) sessionStorage.setItem("activeMemberId", memberId);
+      if (serverName) sessionStorage.setItem("activeServerName", serverName);
+      if (serverCode) sessionStorage.setItem("activeServerCode", serverCode);
+    } catch (error) {
+      // Ignore storage errors.
+    }
+  }, [memberId, serverCode, serverId, serverName]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadServerSnapshot() {
+      if (!serverId) return;
+      setMembersError("");
+      try {
+        const payload = await getServer(serverId);
+        if (cancelled) return;
+        setMembers(Array.isArray(payload.server?.members) ? payload.server.members : []);
+        if (payload.server?.name) setServerName(payload.server.name);
+        if (payload.server?.code) setServerCode(payload.server.code);
+      } catch (error) {
+        if (!cancelled) {
+          setMembersError(error.message || "Could not load members");
+        }
+      }
+    }
+
+    loadServerSnapshot();
+    return () => {
+      cancelled = true;
+    };
+  }, [serverId]);
+
+  useEffect(() => {
+    if (!serverId || !memberId) return;
+    const socket = io({
+      path: "/socket.io",
+      transports: ["websocket", "polling"],
+    });
+
+    setRealtimeStatus("connecting");
+    setMembersError("");
+
+    socket.on("connect", () => {
+      socket.emit("server:subscribe", { serverId, memberId });
+    });
+
+    socket.on("server:subscribed", (payload) => {
+      const server = payload?.server;
+      if (!server) return;
+      setRealtimeStatus("online");
+      setMembers(Array.isArray(server.members) ? server.members : []);
+      if (server.name) setServerName(server.name);
+      if (server.code) setServerCode(server.code);
+    });
+
+    socket.on("server:members", (payload) => {
+      const server = payload?.server;
+      if (!server) return;
+      setMembers(Array.isArray(server.members) ? server.members : []);
+      if (server.name) setServerName(server.name);
+      if (server.code) setServerCode(server.code);
+    });
+
+    socket.on("server:error", (payload) => {
+      setRealtimeStatus("error");
+      setMembersError(payload?.error || "Realtime connection error");
+    });
+
+    socket.on("disconnect", () => {
+      setRealtimeStatus("offline");
+    });
+
+    return () => {
+      socket.emit("server:unsubscribe");
+      socket.disconnect();
+    };
+  }, [memberId, serverId]);
 
   function clampCatPosition(x, y) {
     const rect = stageRef.current?.getBoundingClientRect();
@@ -142,6 +237,48 @@ export default function Session() {
               </button>
             ))}
           </nav>
+
+          <section className="mt-5 rounded-xl border-2 border-primary/35 bg-white/70 p-3">
+            <h3 className="font-card text-xl font-black tracking-tight text-slate-900">
+              Members
+            </h3>
+            <p className="mt-1 text-xs font-semibold uppercase tracking-wide text-slate-600">
+              Status: {realtimeStatus}
+            </p>
+            {serverCode && (
+              <p className="mt-1 text-xs font-semibold uppercase tracking-wide text-slate-600">
+                Code: {serverCode}
+              </p>
+            )}
+            {membersError && (
+              <p className="mt-2 rounded-lg border border-red-300 bg-red-50 px-2 py-1 text-xs font-semibold text-red-700">
+                {membersError}
+              </p>
+            )}
+            <div className="mt-2 max-h-36 space-y-1 overflow-auto pr-1">
+              {members.length === 0 && (
+                <p className="text-sm font-semibold text-slate-700">
+                  No members yet.
+                </p>
+              )}
+              {members.map((member) => (
+                <div
+                  key={member.id}
+                  className="flex items-center justify-between rounded-lg border border-primary/25 bg-white/80 px-2 py-1"
+                >
+                  <p className="truncate text-sm font-semibold text-slate-800">
+                    {member.username}
+                  </p>
+                  <span
+                    className={`ml-2 inline-block h-2.5 w-2.5 rounded-full ${
+                      member.online ? "bg-green-500" : "bg-slate-400"
+                    }`}
+                    title={member.online ? "Online" : "Offline"}
+                  />
+                </div>
+              ))}
+            </div>
+          </section>
 
           <div className="mt-auto border-t-2 border-primary/25 pt-4">
             {customTabs.length > 0 && (
