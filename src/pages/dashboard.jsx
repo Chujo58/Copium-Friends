@@ -1,27 +1,27 @@
-import { useMemo, useState } from "react";
-import { Sun, Moon } from "lucide-react";
-import { useTheme } from "../theme-context.jsx";
+import { useEffect, useMemo, useState } from "react";
+import { Moon, Sun } from "lucide-react";
 import { useLocation, useNavigate } from "react-router-dom";
-import {
-  createServer,
-  joinServerByCode,
-  listServers,
-} from "../lib/api";
+import { createServer, joinServerByCode, listServers } from "../lib/api";
 import { getStoredUsername, setStoredUsername } from "../lib/identity";
+import { useTheme } from "../theme-context.jsx";
 
 export default function Dashboard() {
   const navigate = useNavigate();
   const location = useLocation();
   const { isDay, toggleMode } = useTheme();
-  const [serverName, setServerName] = useState("");
+
+  const username = (
+    location.state?.username?.trim() ||
+    getStoredUsername() ||
+    "Guest"
+  ).trim();
+
+  const [createServerName, setCreateServerName] = useState("");
   const [serverCode, setServerCode] = useState("");
   const [filterText, setFilterText] = useState("");
   const [serverType, setServerType] = useState("Public");
   const [playerCount, setPlayerCount] = useState("8");
-  const username = location.state?.username || "Guest";
 
-  const [errorMessageCreation, setErrorMessageCreation] = useState("");
-  const [errorMessageJoin, setErrorMessageJoin] = useState("");
   const [servers, setServers] = useState([]);
   const [serversLoading, setServersLoading] = useState(true);
   const [serversError, setServersError] = useState("");
@@ -29,11 +29,6 @@ export default function Dashboard() {
   const [isCreating, setIsCreating] = useState(false);
   const [isJoiningByCode, setIsJoiningByCode] = useState(false);
   const [joiningServerId, setJoiningServerId] = useState("");
-  const username = (
-    location.state?.username?.trim() ||
-    getStoredUsername() ||
-    "Guest"
-  ).trim();
 
   useEffect(() => {
     if (username && username !== "Guest") {
@@ -76,15 +71,6 @@ export default function Dashboard() {
     setPlayerCount(String(Math.min(12, Math.max(1, numeric))));
   }
 
-  function openCatChooser(flowType) {
-    if (!serverName.trim() && flowType === "create") {
-      setErrorMessageCreation("Server name cannot be empty.");
-      return;
-    }
-    if (!serverCode.trim() && flowType === "join-by-code") {
-      setErrorMessageJoin("Server code cannot be empty.");
-      return;
-    }
   function persistActiveServer(server, member) {
     try {
       sessionStorage.setItem("activeServerName", server.name || "My Server");
@@ -98,7 +84,6 @@ export default function Dashboard() {
 
   function openCatChooser(flowType, server, member) {
     persistActiveServer(server, member);
-
     navigate("/choosecat1", {
       state: {
         username,
@@ -114,9 +99,9 @@ export default function Dashboard() {
   async function handleCreateServer() {
     const name = createServerName.trim();
     if (!name || isCreating) return;
-
     setActionError("");
     setIsCreating(true);
+
     try {
       const payload = await createServer({
         name,
@@ -136,9 +121,9 @@ export default function Dashboard() {
   async function handleJoinByCode() {
     const code = serverCode.trim();
     if (!code || isJoiningByCode) return;
-
     setActionError("");
     setIsJoiningByCode(true);
+
     try {
       const payload = await joinServerByCode({ code, username });
       await fetchServers(false);
@@ -170,11 +155,13 @@ export default function Dashboard() {
   }
 
   return (
-    <div className={`relative min-h-screen overflow-hidden transition-all duration-[2000ms] px-4 py-8 md:px-8 ${
-      isDay
-        ? "bg-gradient-to-t from-[#88A7BE] via-[#A6C0D2] to-[#C8D8E3]"
-        : "bg-gradient-to-t from-[#0F172A] via-[#1E293B] to-[#334155]"
-    }`}>
+    <div
+      className={`relative min-h-screen overflow-hidden px-4 py-8 transition-all duration-[2000ms] md:px-8 ${
+        isDay
+          ? "bg-gradient-to-t from-[#88A7BE] via-[#A6C0D2] to-[#C8D8E3]"
+          : "bg-gradient-to-t from-[#0F172A] via-[#1E293B] to-[#334155]"
+      }`}
+    >
       <button
         onClick={toggleMode}
         aria-label="Toggle light/dark mode"
@@ -192,6 +179,7 @@ export default function Dashboard() {
           )}
         </div>
       </button>
+
       <div className="absolute -top-24 -left-20 h-80 w-80 rounded-full bg-white/30 blur-2xl" />
       <div className="absolute -bottom-24 -right-16 h-80 w-80 rounded-full bg-primary/25 blur-2xl" />
 
@@ -210,7 +198,6 @@ export default function Dashboard() {
                 value={createServerName}
                 onChange={(event) => setCreateServerName(event.target.value)}
                 placeholder="Server Name"
-                onChange={(event) => setServerName(event.target.value)}
                 className="h-14 flex-1 rounded-2xl border-2 border-primary/40 bg-white/85 px-4 text-xl font-semibold text-slate-800 placeholder:text-slate-500 outline-none"
               />
               <button
@@ -225,10 +212,6 @@ export default function Dashboard() {
                 {isCreating ? "Creating..." : "Create"}
               </button>
             </div>
-
-            {errorMessageCreation && (
-              <p className="mb-4 text-sm font-semibold text-red-600">{errorMessageCreation}</p>
-            )}
 
             <div className="flex flex-wrap items-center gap-x-7 gap-y-3 text-lg font-semibold text-slate-800">
               <div className="flex items-center gap-3">
@@ -288,10 +271,6 @@ export default function Dashboard() {
                 className="h-14 flex-1 rounded-2xl border-2 border-primary/40 bg-white/85 px-4 text-xl font-semibold text-slate-800 placeholder:text-slate-500 outline-none"
               />
               <button
-                onClick={() => openCatChooser("join-by-code")}
-                className="h-14 rounded-2xl border-2 border-primary/40 bg-primary px-10 font-card text-2xl font-black tracking-tight text-white n hover:bg-accent hover:text-black"
-              >
-                Join
                 onClick={handleJoinByCode}
                 disabled={!serverCode.trim() || isJoiningByCode}
                 className={`h-14 rounded-2xl border-2 border-primary/40 px-10 font-card text-2xl font-black tracking-tight transition ${
@@ -304,10 +283,6 @@ export default function Dashboard() {
               </button>
             </div>
 
-            {errorMessageJoin && (
-              <p className="mb-4 text-sm font-semibold text-red-600">{errorMessageJoin}</p>
-            )}
-
             <div className="mb-4 flex flex-wrap items-center gap-3 border-t-2 border-primary/25 pt-4">
               <input
                 value={filterText}
@@ -315,12 +290,11 @@ export default function Dashboard() {
                 placeholder="Filter server names"
                 className="h-12 min-w-[220px] flex-1 rounded-xl border-2 border-primary/40 bg-white/85 px-4 text-lg text-slate-800 outline-none"
               />
-              <button className="h-12 rounded-xl border-2 border-accent/40 bg-accent px-8 font-card text-xl font-black tracking-tight text-black transition hover:bg-surface">
+              <button className="h-12 rounded-xl border-2 border-primary/40 bg-primary px-8 font-card text-xl font-black tracking-tight text-white transition hover:bg-accent">
                 Filter
               </button>
             </div>
 
-            <div className="max-h-[340px] space-y-3 overflow-auto ">
             <div className="max-h-[340px] space-y-3 overflow-auto pr-2">
               {serversLoading && (
                 <p className="rounded-xl border-2 border-primary/30 bg-white/70 p-3 text-center font-semibold text-slate-700">
@@ -337,6 +311,7 @@ export default function Dashboard() {
                   No servers found.
                 </p>
               )}
+
               {filteredServers.map((server) => (
                 <article
                   key={server.id}
@@ -354,10 +329,6 @@ export default function Dashboard() {
                     {server.playersLabel || `${server.totalMembers}/${server.maxPlayers}`}
                   </p>
                   <button
-                    onClick={() => openCatChooser("join-server")}
-                    className="h-12 rounded-xl border-2 border-accent/40 bg-accent px-8 font-card text-xl font-black tracking-tight text-black transition hover:bg-surface"
-                  >
-                    Join
                     onClick={() => handleJoinListedServer(server)}
                     disabled={
                       joiningServerId === server.id ||
