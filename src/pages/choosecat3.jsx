@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { useTheme } from "../theme-context.jsx";
 import { useLocation, useNavigate } from "react-router-dom";
 import CatFlowShell from "../components/CatFlowShell";
 import { actionOptions, catOptions } from "./catFlowOptions";
@@ -48,8 +49,10 @@ export default function ChooseCat3() {
     }, 280);
   }
 
+  const { isDay } = useTheme();
   return (
-    <CatFlowShell
+    <div className={isDay ? "bg-gradient-to-t from-[#88A7BE] via-[#A6C0D2] to-[#C8D8E3] min-h-screen" : "bg-gradient-to-t from-[#0F172A] via-[#1E293B] to-[#334155] min-h-screen"}>
+      <CatFlowShell
       step={3}
       title="Choose Cat 3"
       subtitle="Your final cat is ready."
@@ -73,6 +76,7 @@ export default function ChooseCat3() {
           Mode: {actionName}
         </p>
       </div>
-    </CatFlowShell>
+      </CatFlowShell>
+    </div>
   );
 }

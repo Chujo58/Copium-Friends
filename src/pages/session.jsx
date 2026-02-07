@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { useTheme } from "../theme-context.jsx";
 import { useLocation, useNavigate } from "react-router-dom";
 import { actionOptions, catOptions } from "./catFlowOptions";
 
@@ -53,8 +54,13 @@ export default function Session() {
     }
   }
 
+  const { isDay } = useTheme();
   return (
-    <div className="relative flex min-h-screen items-center justify-center overflow-hidden bg-gradient-to-t from-[#88A7BE] via-[#A6C0D2] to-[#C8D8E3] px-4 py-8">
+    <div className={`relative flex min-h-screen items-center justify-center overflow-hidden transition-all duration-[2000ms] px-4 py-8 ${
+      isDay
+        ? "bg-gradient-to-t from-[#88A7BE] via-[#A6C0D2] to-[#C8D8E3]"
+        : "bg-gradient-to-t from-[#0F172A] via-[#1E293B] to-[#334155]"
+    }`}>
       <div className="absolute -top-24 -left-24 h-80 w-80 rounded-full bg-white/30 blur-2xl" />
       <div className="absolute -bottom-24 -right-16 h-80 w-80 rounded-full bg-primary/25 blur-2xl" />
 

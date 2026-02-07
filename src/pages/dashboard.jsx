@@ -1,4 +1,6 @@
 import { useMemo, useState } from "react";
+import { Sun, Moon } from "lucide-react";
+import { useTheme } from "../theme-context.jsx";
 import { useLocation, useNavigate } from "react-router-dom";
 
 const demoServers = [
@@ -11,6 +13,7 @@ const demoServers = [
 export default function Dashboard() {
   const navigate = useNavigate();
   const location = useLocation();
+  const { isDay, toggleMode } = useTheme();
   const [serverName, setServerName] = useState("");
   const [serverCode, setServerCode] = useState("");
   const [filterText, setFilterText] = useState("");
@@ -57,7 +60,28 @@ export default function Dashboard() {
   }
 
   return (
-    <div className="relative min-h-screen overflow-hidden bg-gradient-to-t from-[#88A7BE] via-[#A6C0D2] to-[#C8D8E3] px-4 py-8 md:px-8">
+    <div className={`relative min-h-screen overflow-hidden transition-all duration-[2000ms] px-4 py-8 md:px-8 ${
+      isDay
+        ? "bg-gradient-to-t from-[#88A7BE] via-[#A6C0D2] to-[#C8D8E3]"
+        : "bg-gradient-to-t from-[#0F172A] via-[#1E293B] to-[#334155]"
+    }`}>
+      <button
+        onClick={toggleMode}
+        aria-label="Toggle light/dark mode"
+        className={`group absolute right-12 top-12 z-20 flex h-16 w-16 cursor-pointer items-center justify-center rounded-full outline-none transition-all duration-[2000ms] ${
+          isDay
+            ? "bg-yellow-100 shadow-[0_0_80px_rgba(253,224,71,0.4)] hover:shadow-[0_0_100px_rgba(253,224,71,0.6)]"
+            : "bg-slate-100 shadow-[0_0_50px_rgba(255,255,255,0.2)] hover:shadow-[0_0_70px_rgba(255,255,255,0.4)]"
+        }`}
+      >
+        <div className="transition-transform duration-700 group-hover:rotate-12 group-active:scale-90">
+          {isDay ? (
+            <Sun className="h-8 w-8 text-yellow-400/60" />
+          ) : (
+            <Moon className="h-7 w-7 fill-slate-400/10 text-slate-400/60" />
+          )}
+        </div>
+      </button>
       <div className="absolute -top-24 -left-20 h-80 w-80 rounded-full bg-white/30 blur-2xl" />
       <div className="absolute -bottom-24 -right-16 h-80 w-80 rounded-full bg-primary/25 blur-2xl" />
 
@@ -148,7 +172,7 @@ export default function Dashboard() {
               />
               <button
                 onClick={() => openCatChooser("join-by-code")}
-                className="h-14 rounded-2xl border-2 border-primary/40 bg-primary px-10 font-card text-2xl font-black tracking-tight text-white transition hover:bg-accent hover:text-black"
+                className="h-14 rounded-2xl border-2 border-primary/40 bg-primary px-10 font-card text-2xl font-black tracking-tight text-white n hover:bg-accent hover:text-black"
               >
                 Join
               </button>

@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useTheme } from "../theme-context.jsx";
 import { useLocation, useNavigate } from "react-router-dom";
 import CatFlowShell from "../components/CatFlowShell";
 import { catOptions } from "./catFlowOptions";
@@ -22,8 +23,11 @@ export default function ChooseCat1() {
     }, 280);
   }
 
+  const { isDay } = useTheme();
+  console.log("isDay in ChooseCat1:", isDay);
   return (
-    <CatFlowShell
+    <div className={isDay ? "bg-gradient-to-t from-[#88A7BE] via-[#A6C0D2] to-[#C8D8E3] min-h-screen" : "bg-gradient-to-t from-[#0F172A] via-[#1E293B] to-[#334155] min-h-screen"}>
+      <CatFlowShell
       step={1}
       title="Choose Your Cat"
       subtitle="Choose your character"
@@ -56,6 +60,7 @@ export default function ChooseCat1() {
           </button>
         ))}
       </div>
-    </CatFlowShell>
+      </CatFlowShell>
+    </div>
   );
 }

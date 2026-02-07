@@ -2,6 +2,8 @@ import React, { useEffect, useRef, useState } from "react";
 import { Cloud, Moon, Sun } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 
+import { useTheme } from "../theme-context.jsx";
+
 const CLOUDS = [
   {
     top: "5%",
@@ -76,36 +78,19 @@ const STARS = [...Array(40)].map(() => ({
   delay: `${Math.random() * 5}s`,
 }));
 
+
 export default function Landing() {
   const navigate = useNavigate();
-  const [isDay, setIsDay] = useState(true);
-  const [manualMode, setManualMode] = useState(false);
+  const { isDay, toggleMode } = useTheme();
   const [started, setStarted] = useState(false);
   const [username, setUsername] = useState("");
   const inputRef = useRef(null);
-
-  useEffect(() => {
-    if (!manualMode) {
-      const checkTime = () => {
-        const hour = new Date().getHours();
-        setIsDay(hour >= 6 && hour < 18);
-      };
-      checkTime();
-      const timer = setInterval(checkTime, 60000);
-      return () => clearInterval(timer);
-    }
-  }, [manualMode]);
 
   useEffect(() => {
     if (started) {
       inputRef.current?.focus();
     }
   }, [started]);
-
-  const toggleMode = () => {
-    setManualMode(true);
-    setIsDay(!isDay);
-  };
 
   const goToDashboard = () => {
     if (!username.trim()) return;
