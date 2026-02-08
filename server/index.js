@@ -9,6 +9,7 @@ const GEMINI_MODEL = process.env.GEMINI_MODEL || "gemini-2.5-flash";
 const ELEVENLABS_VOICE_ID =
   process.env.ELEVENLABS_VOICE_ID || "EXAVITQu4vr4xnSDxMaL";
 const ELEVENLABS_STT_MODEL = process.env.ELEVENLABS_STT_MODEL || "scribe_v1";
+const ELEVENLABS_CONVAI_URL = "https://api.elevenlabs.io/v1/convai/conversation";
 const app = express();
 const httpServer = createServer(app);
 const io = new SocketServer(httpServer, {
@@ -1261,6 +1262,71 @@ app.get("/api/talk-cat/webrtc-token", async (req, res) => {
   } catch (error) {
     res.status(500).json({
       error: error.message || "Could not reach ElevenLabs token service",
+    });
+  }
+});
+
+app.post("/api/talk-cat/webrtc-connect", async (req, res) => {
+  const token = String(req.body?.token || "").trim();
+  const agentId = String(req.body?.agentId || process.env.ELEVENLABS_AGENT_ID || "").trim();
+  const offerSdp = String(req.body?.offerSdp || "").trim();
+
+  if (!token) {
+    res.status(400).json({ error: "token is required" });
+    return;
+  }
+  if (!agentId) {
+    res.status(400).json({ error: "agentId is required" });
+    return;
+  }
+  if (!offerSdp) {
+    res.status(400).json({ error: "offerSdp is required" });
+    return;
+  }
+
+  const attempts = [
+    {
+      url: `${ELEVENLABS_CONVAI_URL}?agent_id=${encodeURIComponent(agentId)}`,
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/sdp",
+      },
+    },
+    {
+      url: `${ELEVENLABS_CONVAI_URL}?agent_id=${encodeURIComponent(
+        agentId,
+      )}&token=${encodeURIComponent(token)}`,
+      headers: {
+        "Content-Type": "application/sdp",
+      },
+    },
+  ];
+
+  let lastError = "ElevenLabs WebRTC negotiation failed";
+  try {
+    for (const attempt of attempts) {
+      const response = await fetch(attempt.url, {
+        method: "POST",
+        headers: attempt.headers,
+        body: offerSdp,
+      });
+
+      const answerSdp = await response.text();
+      if (response.ok && String(answerSdp).trim()) {
+        res.json({ answerSdp });
+        return;
+      }
+
+      lastError =
+        String(answerSdp || "").trim() ||
+        `${response.status} ${response.statusText}` ||
+        lastError;
+    }
+
+    res.status(502).json({ error: lastError });
+  } catch (error) {
+    res.status(500).json({
+      error: error.message || "Could not reach ElevenLabs WebRTC service",
     });
   }
 });

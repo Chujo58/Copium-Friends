@@ -2,18 +2,83 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { ArrowLeft, Mic, Square, Volume2 } from "lucide-react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { catOptions } from "./catFlowOptions";
-import { talkCatStt, talkCatTts, talkWithCat } from "../lib/api";
+import { getTalkCatWebRtcToken, talkCatStt, talkCatTts, talkWithCat } from "../lib/api";
 import { getStoredUsername } from "../lib/identity";
 import DraggableCatOverlay from "../components/DraggableCatOverlay";
 import { useTheme } from "../theme-context.jsx";
 
 const MAX_RECORDING_MS = 15000;
+const LIVE_RECONNECT_BASE_MS = 800;
+const LIVE_RECONNECT_MAX_MS = 6000;
 
 function toHistory(messages) {
   return messages
     .slice(-12)
     .map((item) => ({ role: item.role, text: item.text }))
     .filter((item) => item.text);
+}
+
+function extractRealtimeText(payload) {
+  if (!payload || typeof payload !== "object") return "";
+  const candidates = [
+    payload.text,
+    payload.transcript,
+    payload.message,
+    payload.response,
+    payload.output_text,
+    payload.content,
+    payload?.message?.text,
+    payload?.message?.content,
+    payload?.data?.text,
+    payload?.data?.transcript,
+    payload?.message?.transcript,
+  ];
+  for (const value of candidates) {
+    const text = String(value || "").trim();
+    if (text) return text;
+  }
+  return "";
+}
+
+function inferRealtimeRole(payload) {
+  if (!payload || typeof payload !== "object") return null;
+  const type = String(payload.type || payload.event_type || "").toLowerCase();
+  const source = String(payload.source || payload.sender || payload.role || "").toLowerCase();
+
+  if (
+    source.includes("agent") ||
+    source.includes("assistant") ||
+    source.includes("cat") ||
+    source.includes("ai") ||
+    source.includes("model")
+  ) {
+    return "cat";
+  }
+  if (source.includes("user") || source.includes("human")) return "user";
+
+  if (type.includes("assistant") || type.includes("agent") || type.includes("response")) {
+    return "cat";
+  }
+  if (type.includes("user") || type.includes("transcript")) {
+    return "user";
+  }
+  return null;
+}
+
+async function loadElevenLabsConversationSdk() {
+  const localModuleName = "@elevenlabs/client";
+  try {
+    // Use a runtime string + vite-ignore so dev server doesn't fail if package is absent.
+    return await import(/* @vite-ignore */ localModuleName);
+  } catch (_localImportError) {
+    try {
+      return await import(/* @vite-ignore */ "https://esm.sh/@elevenlabs/client");
+    } catch (_cdnImportError) {
+      throw new Error(
+        "Could not load ElevenLabs Conversation SDK. Install @elevenlabs/client or check network.",
+      );
+    }
+  }
 }
 
 export default function TalkCat() {
@@ -26,8 +91,15 @@ export default function TalkCat() {
   const streamRef = useRef(null);
   const chunksRef = useRef([]);
   const recordingTimerRef = useRef(null);
-  const talkingVisualDelayRef = useRef(null);
   const talkingVisualLoopRef = useRef(null);
+  const conversationRef = useRef(null);
+  const voiceModeRef = useRef("partial");
+  const liveReconnectTimerRef = useRef(null);
+  const liveReconnectAttemptRef = useRef(0);
+  const liveManualOffRef = useRef(false);
+  const isConnectingLiveRef = useRef(false);
+  const activeAudioUrlRef = useRef("");
+  const interruptedSpeakRef = useRef(false);
 
   const selectedCatId =
     location.state?.selectedCat || sessionStorage.getItem("selectedCatId") || catOptions[0].id;
@@ -49,7 +121,6 @@ export default function TalkCat() {
       text: `Hi ${username}, I'm ${cat.name}. Tell me what you want to study in ${serverName}.`,
     },
   ]);
-  const [input, setInput] = useState("");
   const [error, setError] = useState("");
   const [isSending, setIsSending] = useState(false);
   const [isSpeaking, setIsSpeaking] = useState(false);
@@ -58,11 +129,19 @@ export default function TalkCat() {
   const [isCatTalkingVisual, setIsCatTalkingVisual] = useState(false);
   const [idleTalkCatFrame, setIdleTalkCatFrame] = useState("");
   const [talkGifRunId, setTalkGifRunId] = useState(0);
+  const [voiceMode, setVoiceMode] = useState("partial");
+  const [isModeSwitching, setIsModeSwitching] = useState(false);
+  const [webRtcStatus, setWebRtcStatus] = useState("off");
+  const [isWebRtcMuted, setIsWebRtcMuted] = useState(false);
+
+  useEffect(() => {
+    voiceModeRef.current = voiceMode;
+  }, [voiceMode]);
 
   useEffect(() => {
     try {
       sessionStorage.setItem("selectedCatId", cat.id);
-    } catch (storageError) {
+    } catch (_storageError) {
       // Ignore storage errors.
     }
   }, [cat.id]);
@@ -72,6 +151,272 @@ export default function TalkCat() {
     if (!container) return;
     container.scrollTop = container.scrollHeight;
   }, [messages]);
+
+  function startTalkingVisual() {
+    if (talkingVisualLoopRef.current) {
+      window.clearInterval(talkingVisualLoopRef.current);
+      talkingVisualLoopRef.current = null;
+    }
+    setTalkGifRunId((value) => value + 1);
+    setIsCatTalkingVisual(true);
+
+    // Some GIFs do not loop reliably across browsers, so force periodic restart.
+    talkingVisualLoopRef.current = window.setInterval(() => {
+      setTalkGifRunId((value) => value + 1);
+    }, 1650);
+  }
+
+  function stopTalkingVisual() {
+    if (talkingVisualLoopRef.current) {
+      window.clearInterval(talkingVisualLoopRef.current);
+      talkingVisualLoopRef.current = null;
+    }
+    setIsCatTalkingVisual(false);
+  }
+
+  function appendMessage(role, text) {
+    const safeRole = role === "user" ? "user" : "cat";
+    const safeText = String(text || "").trim();
+    if (!safeText) return;
+
+    setMessages((prev) => {
+      const last = prev[prev.length - 1];
+      if (last?.role === safeRole && last?.text === safeText) return prev;
+      return [
+        ...prev,
+        {
+          id: `${safeRole}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+          role: safeRole,
+          text: safeText,
+        },
+      ];
+    });
+  }
+
+  function cleanupPartialRecordingStream() {
+    if (recordingTimerRef.current) {
+      window.clearTimeout(recordingTimerRef.current);
+      recordingTimerRef.current = null;
+    }
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach((track) => track.stop());
+      streamRef.current = null;
+    }
+    chunksRef.current = [];
+    recorderRef.current = null;
+    setIsRecording(false);
+    setIsTranscribing(false);
+  }
+
+  function stopLocalVoicePlayback() {
+    interruptedSpeakRef.current = true;
+    if (audioRef.current) {
+      try {
+        audioRef.current.pause();
+      } catch (_error) {
+        // Ignore pause errors.
+      }
+      audioRef.current = null;
+    }
+    if (activeAudioUrlRef.current) {
+      URL.revokeObjectURL(activeAudioUrlRef.current);
+      activeAudioUrlRef.current = "";
+    }
+    setIsSpeaking(false);
+    stopTalkingVisual();
+  }
+
+  function clearLiveReconnectTimer() {
+    if (liveReconnectTimerRef.current) {
+      window.clearTimeout(liveReconnectTimerRef.current);
+      liveReconnectTimerRef.current = null;
+    }
+  }
+
+  async function disconnectWebRtcConversation({ manual = false } = {}) {
+    if (manual) {
+      liveManualOffRef.current = true;
+      clearLiveReconnectTimer();
+      liveReconnectAttemptRef.current = 0;
+    }
+    const conversation = conversationRef.current;
+    conversationRef.current = null;
+    if (conversation?.endSession) {
+      try {
+        await conversation.endSession();
+      } catch (_error) {
+        // Ignore end session errors.
+      }
+    }
+    setWebRtcStatus("off");
+    setIsWebRtcMuted(false);
+    stopTalkingVisual();
+  }
+
+  function scheduleLiveReconnect(reason = "disconnect") {
+    if (liveManualOffRef.current) return;
+    if (voiceModeRef.current !== "webrtc") return;
+    if (liveReconnectTimerRef.current || isConnectingLiveRef.current) return;
+
+    const attempt = liveReconnectAttemptRef.current + 1;
+    liveReconnectAttemptRef.current = attempt;
+    const delay = Math.min(
+      LIVE_RECONNECT_MAX_MS,
+      LIVE_RECONNECT_BASE_MS * 2 ** Math.min(attempt - 1, 3),
+    );
+    setWebRtcStatus("reconnecting");
+
+    liveReconnectTimerRef.current = window.setTimeout(async () => {
+      liveReconnectTimerRef.current = null;
+      if (liveManualOffRef.current || voiceModeRef.current !== "webrtc") return;
+      try {
+        await connectWebRtcConversation(`reconnect:${reason}:${attempt}`);
+      } catch (error) {
+        setError(error.message || "Live mode reconnect failed");
+        scheduleLiveReconnect("retry");
+      }
+    }, delay);
+  }
+
+  async function connectWebRtcConversation(_reason = "manual") {
+    if (isConnectingLiveRef.current) return;
+    if (conversationRef.current) return;
+    isConnectingLiveRef.current = true;
+    const tokenPayload = await getTalkCatWebRtcToken();
+    const token = String(tokenPayload?.token || "").trim();
+    if (!token) {
+      isConnectingLiveRef.current = false;
+      throw new Error("Missing ElevenLabs conversation token.");
+    }
+
+    const sdk = await loadElevenLabsConversationSdk();
+    const Conversation = sdk?.Conversation;
+    if (!Conversation?.startSession) {
+      isConnectingLiveRef.current = false;
+      throw new Error("ElevenLabs Conversation SDK is unavailable.");
+    }
+
+    setWebRtcStatus("connecting");
+    try {
+      const conversation = await Conversation.startSession({
+        conversationToken: token,
+        connectionType: "webrtc",
+        onConnect: () => {
+          clearLiveReconnectTimer();
+          liveReconnectAttemptRef.current = 0;
+          setError("");
+          setWebRtcStatus("on");
+        },
+        onDisconnect: () => {
+          conversationRef.current = null;
+          setIsWebRtcMuted(false);
+          stopTalkingVisual();
+          if (voiceModeRef.current === "webrtc" && !liveManualOffRef.current) {
+            scheduleLiveReconnect("disconnect");
+            return;
+          }
+          setWebRtcStatus("off");
+        },
+        onError: (sdkError) => {
+          const message = String(sdkError?.message || sdkError || "").trim();
+          if (message) setError(message);
+        },
+        onStatusChange: ({ status }) => {
+          if (!status) return;
+          const normalized = String(status).toLowerCase();
+          if (normalized.includes("connect")) {
+            setWebRtcStatus(normalized.includes("ed") ? "on" : "connecting");
+            return;
+          }
+          if (normalized.includes("disconnect") || normalized.includes("ended")) {
+            conversationRef.current = null;
+            setIsWebRtcMuted(false);
+            stopTalkingVisual();
+            if (voiceModeRef.current === "webrtc" && !liveManualOffRef.current) {
+              scheduleLiveReconnect(normalized);
+              return;
+            }
+            setWebRtcStatus("off");
+          }
+        },
+        onModeChange: ({ mode }) => {
+          const normalized = String(mode || "").toLowerCase();
+          if (normalized.includes("speak")) {
+            startTalkingVisual();
+          } else if (normalized.includes("listen") || normalized.includes("idle")) {
+            stopTalkingVisual();
+          }
+        },
+        onMessage: (payload) => {
+          const type = String(payload?.type || payload?.event_type || "").toLowerCase();
+          if (
+            type.includes("agent") &&
+            (type.includes("start") || type.includes("speaking") || type.includes("audio"))
+          ) {
+            startTalkingVisual();
+          }
+          if (
+            type.includes("agent") &&
+            (type.includes("end") || type.includes("done") || type.includes("stop"))
+          ) {
+            stopTalkingVisual();
+          }
+
+          const role = inferRealtimeRole(payload);
+          const text = extractRealtimeText(payload);
+          if (role && text) {
+            appendMessage(role, text);
+          }
+        },
+      });
+
+      conversationRef.current = conversation;
+    } finally {
+      isConnectingLiveRef.current = false;
+    }
+  }
+
+  async function toggleVoiceMode() {
+    if (isModeSwitching) return;
+    setError("");
+    setIsModeSwitching(true);
+
+    try {
+      if (voiceMode === "partial") {
+        stopLocalVoicePlayback();
+        if (isRecording) cleanupPartialRecordingStream();
+        liveManualOffRef.current = false;
+        clearLiveReconnectTimer();
+        liveReconnectAttemptRef.current = 0;
+        await connectWebRtcConversation();
+        setVoiceMode("webrtc");
+        appendMessage("cat", "Live mode on. Speak naturally for real-time conversation.");
+      } else {
+        await disconnectWebRtcConversation({ manual: true });
+        stopLocalVoicePlayback();
+        setVoiceMode("partial");
+        appendMessage("cat", "Switched back to push-to-talk mode.");
+      }
+    } catch (modeError) {
+      await disconnectWebRtcConversation({ manual: true });
+      setVoiceMode("partial");
+      setError(modeError.message || "Could not switch voice mode");
+    } finally {
+      setIsModeSwitching(false);
+    }
+  }
+
+  async function toggleWebRtcMute() {
+    const conversation = conversationRef.current;
+    if (!conversation?.setMicMuted) return;
+    const nextMuted = !isWebRtcMuted;
+    try {
+      await conversation.setMicMuted(nextMuted);
+      setIsWebRtcMuted(nextMuted);
+    } catch (_error) {
+      // Ignore mute API errors.
+    }
+  }
 
   useEffect(() => {
     let cancelled = false;
@@ -98,67 +443,24 @@ export default function TalkCat() {
 
   useEffect(() => {
     return () => {
-      if (audioRef.current) {
-        audioRef.current.pause();
-        audioRef.current = null;
-      }
+      stopLocalVoicePlayback();
       if (recorderRef.current && recorderRef.current.state !== "inactive") {
         recorderRef.current.stop();
       }
-      if (recordingTimerRef.current) {
-        window.clearTimeout(recordingTimerRef.current);
-        recordingTimerRef.current = null;
-      }
-      if (talkingVisualDelayRef.current) {
-        window.clearTimeout(talkingVisualDelayRef.current);
-        talkingVisualDelayRef.current = null;
-      }
-      if (talkingVisualLoopRef.current) {
-        window.clearInterval(talkingVisualLoopRef.current);
-        talkingVisualLoopRef.current = null;
-      }
-      if (streamRef.current) {
-        streamRef.current.getTracks().forEach((track) => track.stop());
-        streamRef.current = null;
-      }
+      cleanupPartialRecordingStream();
+      void disconnectWebRtcConversation({ manual: true });
+      clearLiveReconnectTimer();
+      stopTalkingVisual();
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   async function speakText(text) {
     if (!text) return;
 
-    const stopTalkingVisual = () => {
-      if (talkingVisualDelayRef.current) {
-        window.clearTimeout(talkingVisualDelayRef.current);
-        talkingVisualDelayRef.current = null;
-      }
-      if (talkingVisualLoopRef.current) {
-        window.clearInterval(talkingVisualLoopRef.current);
-        talkingVisualLoopRef.current = null;
-      }
-      setIsCatTalkingVisual(false);
-    };
-
-    const startTalkingVisual = () => {
-      if (talkingVisualDelayRef.current) {
-        window.clearTimeout(talkingVisualDelayRef.current);
-      }
-      if (talkingVisualLoopRef.current) {
-        window.clearInterval(talkingVisualLoopRef.current);
-      }
-
-      talkingVisualDelayRef.current = null;
-      setTalkGifRunId((value) => value + 1);
-      setIsCatTalkingVisual(true);
-
-      // Some GIFs don't loop reliably across browsers, so force periodic restart while speaking.
-      talkingVisualLoopRef.current = window.setInterval(() => {
-        setTalkGifRunId((value) => value + 1);
-      }, 1650);
-    };
-
+    interruptedSpeakRef.current = false;
     setIsSpeaking(true);
-    setIsCatTalkingVisual(false);
+    stopTalkingVisual();
     setError("");
     try {
       const payload = await talkCatTts({
@@ -178,34 +480,49 @@ export default function TalkCat() {
       }
       const blob = new Blob([bytes], { type: payload?.mimeType || "audio/mpeg" });
       const url = URL.createObjectURL(blob);
+      activeAudioUrlRef.current = url;
 
       if (audioRef.current) {
         audioRef.current.pause();
       }
       const audio = new Audio(url);
       audioRef.current = audio;
-      audio.onplay = () => {
-        startTalkingVisual();
-      };
-      audio.onpause = () => {
-        stopTalkingVisual();
-      };
+      audio.onplay = () => startTalkingVisual();
+      audio.onpause = () => stopTalkingVisual();
 
       await new Promise((resolve, reject) => {
+        let settled = false;
+        const finalize = (handler) => {
+          if (settled) return;
+          settled = true;
+          audio.onended = null;
+          audio.onerror = null;
+          audio.onpause = null;
+          if (activeAudioUrlRef.current === url) {
+            URL.revokeObjectURL(url);
+            activeAudioUrlRef.current = "";
+          }
+          handler();
+        };
+
         audio.onerror = () => {
           stopTalkingVisual();
-          URL.revokeObjectURL(url);
-          reject(new Error("Audio playback failed"));
+          finalize(() => reject(new Error("Audio playback failed")));
         };
         audio.onended = () => {
           stopTalkingVisual();
-          URL.revokeObjectURL(url);
-          resolve();
+          finalize(() => resolve());
+        };
+        audio.onpause = () => {
+          stopTalkingVisual();
+          if (interruptedSpeakRef.current) {
+            finalize(() => resolve());
+          }
         };
         audio
           .play()
           .then(() => {})
-          .catch(reject);
+          .catch((error) => finalize(() => reject(error)));
       });
     } catch (speakError) {
       stopTalkingVisual();
@@ -222,7 +539,6 @@ export default function TalkCat() {
 
     setError("");
     setIsSending(true);
-    setInput("");
 
     const userMessage = {
       id: `user-${Date.now()}`,
@@ -260,7 +576,6 @@ export default function TalkCat() {
     } catch (requestError) {
       setError(requestError.message || "Could not reach talk-with-cat service");
       setMessages((prev) => prev.filter((item) => item.id !== userMessage.id));
-      setInput(safeText);
     } finally {
       setIsSending(false);
     }
@@ -268,7 +583,7 @@ export default function TalkCat() {
 
   async function speakLatestCatReply() {
     const latestCat = [...messages].reverse().find((item) => item.role === "cat");
-    if (!latestCat || isSpeaking) return;
+    if (!latestCat || isSpeaking || voiceMode !== "partial") return;
     await speakText(latestCat.text);
   }
 
@@ -335,6 +650,11 @@ export default function TalkCat() {
   }
 
   async function toggleVoiceInput() {
+    if (voiceMode === "webrtc") {
+      await toggleWebRtcMute();
+      return;
+    }
+
     if (isRecording) {
       await stopRecordingAndTranscribe();
       return;
@@ -372,14 +692,7 @@ export default function TalkCat() {
       }, MAX_RECORDING_MS);
     } catch (recordError) {
       setError(recordError.message || "Could not access microphone");
-      if (recordingTimerRef.current) {
-        window.clearTimeout(recordingTimerRef.current);
-        recordingTimerRef.current = null;
-      }
-      if (streamRef.current) {
-        streamRef.current.getTracks().forEach((track) => track.stop());
-        streamRef.current = null;
-      }
+      cleanupPartialRecordingStream();
     }
   }
 
@@ -407,21 +720,40 @@ export default function TalkCat() {
             <ArrowLeft className="h-5 w-5" />
             Back
           </button>
-          <button
-            onClick={speakLatestCatReply}
-            disabled={isSpeaking}
-            className={`inline-flex h-11 items-center gap-2 rounded-xl border-2 px-4 font-card text-lg font-black tracking-tight transition ${
-              isSpeaking
-                ? "cursor-not-allowed border-slate-300 bg-slate-200 text-slate-500"
-                : "border-primary/45 bg-primary text-white hover:bg-accent"
-            }`}
-          >
-            <Volume2 className="h-5 w-5" />
-            {isSpeaking ? "Speaking..." : "Speak Cat"}
-          </button>
+
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              onClick={toggleVoiceMode}
+              disabled={isModeSwitching}
+              className={`inline-flex h-11 items-center gap-2 rounded-xl border-2 px-4 font-card text-sm font-black tracking-tight transition ${
+                voiceMode === "webrtc"
+                  ? "border-emerald-500/60 bg-emerald-600 text-white hover:bg-emerald-700"
+                  : "border-primary/45 bg-primary text-white hover:bg-accent"
+              } ${isModeSwitching ? "cursor-not-allowed opacity-60" : ""}`}
+            >
+              {isModeSwitching
+                ? "Switching..."
+                : voiceMode === "webrtc"
+                  ? "Live WebRTC: ON"
+                  : "Live WebRTC: OFF"}
+            </button>
+
+            <button
+              onClick={speakLatestCatReply}
+              disabled={isSpeaking || voiceMode !== "partial"}
+              className={`inline-flex h-11 items-center gap-2 rounded-xl border-2 px-4 font-card text-lg font-black tracking-tight transition ${
+                isSpeaking || voiceMode !== "partial"
+                  ? "cursor-not-allowed border-slate-300 bg-slate-200 text-slate-500"
+                  : "border-primary/45 bg-primary text-white hover:bg-accent"
+              }`}
+            >
+              <Volume2 className="h-5 w-5" />
+              {isSpeaking ? "Speaking..." : "Speak Cat"}
+            </button>
+          </div>
         </div>
 
-        <div className="grid min-h-0 flex-1 gap-4 grid-cols-[180px_minmax(0,1fr)] md:grid-cols-[220px_minmax(0,1fr)]">
+        <div className="grid min-h-0 flex-1 grid-cols-[180px_minmax(0,1fr)] gap-4 md:grid-cols-[220px_minmax(0,1fr)]">
           <div className="self-start rounded-2xl border-2 border-primary/35 bg-white/80 p-4 text-center">
             {catVisualSrc ? (
               <img
@@ -441,13 +773,19 @@ export default function TalkCat() {
             <p className="mt-2 text-xs font-semibold uppercase tracking-wide text-slate-600">
               Server: {serverName}
             </p>
+            <p className="mt-2 text-[11px] font-semibold uppercase tracking-wide text-slate-600">
+              Mode:{" "}
+              {voiceMode === "webrtc"
+                ? `Live (${webRtcStatus})`
+                : "Partial (push-to-talk)"}
+            </p>
           </div>
 
           <div className="flex min-h-0 flex-col rounded-2xl border-2 border-primary/35 bg-white/85 p-4">
             <div className="relative min-h-0 flex-1">
               <div
                 ref={scrollRef}
-                className="h-full min-h-0 space-y-2 overflow-y-auto overflow-x-hidden overscroll-contain rounded-xl border-2 border-primary/30 bg-white/70 p-3"
+                className="h-full min-h-0 space-y-2 overflow-x-hidden overflow-y-auto overscroll-contain rounded-xl border-2 border-primary/30 bg-white/70 p-3"
               >
                 {messages.map((message) => {
                   const mine = message.role === "user";
@@ -473,35 +811,66 @@ export default function TalkCat() {
               </div>
             </div>
 
-            <div className="mt-3 flex justify-center">
+            <div className="mt-3 flex items-center justify-center gap-3">
               <button
                 type="button"
                 onClick={toggleVoiceInput}
-                disabled={isSending || isTranscribing}
-                className={`inline-flex h-14 w-14 items-center justify-center rounded-full border-2 transition ${
-                  isRecording
-                    ? "border-red-500 bg-red-500 text-white hover:bg-red-600"
-                    : isSending || isTranscribing
-                      ? "cursor-not-allowed border-slate-300 bg-slate-200 text-slate-500"
-                      : "border-primary/45 bg-primary text-white hover:bg-accent"
+                disabled={
+                  voiceMode === "partial" &&
+                  (isSending || isTranscribing || isModeSwitching)
+                }
+                className={`inline-flex h-14 min-w-14 items-center justify-center rounded-full border-2 px-4 transition ${
+                  voiceMode === "webrtc"
+                    ? isWebRtcMuted
+                      ? "border-yellow-500 bg-yellow-500 text-white hover:bg-yellow-600"
+                      : "border-emerald-500 bg-emerald-600 text-white hover:bg-emerald-700"
+                    : isRecording
+                      ? "border-red-500 bg-red-500 text-white hover:bg-red-600"
+                      : isSending || isTranscribing || isModeSwitching
+                        ? "cursor-not-allowed border-slate-300 bg-slate-200 text-slate-500"
+                        : "border-primary/45 bg-primary text-white hover:bg-accent"
                 }`}
                 title={
-                  isRecording
-                    ? "Stop and send voice"
-                    : isTranscribing
-                      ? "Transcribing..."
-                      : "Click to talk"
+                  voiceMode === "webrtc"
+                    ? isWebRtcMuted
+                      ? "Unmute live microphone"
+                      : "Mute live microphone"
+                    : isRecording
+                      ? "Stop and send voice"
+                      : isTranscribing
+                        ? "Transcribing..."
+                        : "Click to talk"
                 }
                 aria-label={
-                  isRecording
-                    ? "Stop and send voice"
-                    : isTranscribing
-                      ? "Transcribing voice"
-                      : "Click to talk"
+                  voiceMode === "webrtc"
+                    ? isWebRtcMuted
+                      ? "Unmute live microphone"
+                      : "Mute live microphone"
+                    : isRecording
+                      ? "Stop and send voice"
+                      : isTranscribing
+                        ? "Transcribing voice"
+                        : "Click to talk"
                 }
               >
-                {isRecording ? <Square className="h-4 w-4" /> : <Mic className="h-5 w-5" />}
+                {voiceMode === "webrtc" ? (
+                  <Mic className="h-5 w-5" />
+                ) : isRecording ? (
+                  <Square className="h-4 w-4" />
+                ) : (
+                  <Mic className="h-5 w-5" />
+                )}
               </button>
+
+              <p className="text-xs font-semibold text-slate-700">
+                {voiceMode === "webrtc"
+                  ? isWebRtcMuted
+                    ? "Live mode muted"
+                    : "Live mode active (continuous duplex audio)"
+                  : isTranscribing
+                    ? "Transcribing..."
+                    : "Push-to-talk mode"}
+              </p>
             </div>
 
             {error && (
