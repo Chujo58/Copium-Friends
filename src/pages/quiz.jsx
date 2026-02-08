@@ -362,7 +362,7 @@ export default function Quiz() {
         </form>
       </div>
 
-      <DraggableCatOverlay selectedCatId={selectedCat} username={username} />
+      <DraggableCatOverlay selectedCatId={selectedCat} selectedAction={selectedAction} username={username} />
     </div>
   );
 }

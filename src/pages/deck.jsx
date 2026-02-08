@@ -341,7 +341,7 @@ export default function Deck() {
         </section>
       </div>
 
-      <DraggableCatOverlay selectedCatId={selectedCat} username={username} />
+      <DraggableCatOverlay selectedCatId={selectedCat} selectedAction={selectedAction} username={username} />
     </div>
   );
 }

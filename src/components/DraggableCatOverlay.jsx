@@ -27,6 +27,7 @@ function getDefaultPosition() {
 
 export default function DraggableCatOverlay({
   selectedCatId,
+  selectedAction,
   username,
   storageKey = "floatingCatOverlayPosition",
 }) {
@@ -116,6 +117,11 @@ export default function DraggableCatOverlay({
     setIsDragging(true);
   }
 
+  // Pick the correct image for the action, fallback to gif
+  const actionImage = selectedAction && cat[`${selectedAction}Image`];
+  const grabImage = cat.grabImage;
+  const displayImage = isDragging && grabImage ? grabImage : (actionImage || cat.gif);
+
   return (
     <div
       className="pointer-events-none fixed z-[80]"
@@ -127,7 +133,7 @@ export default function DraggableCatOverlay({
       }}
     >
       <img
-        src={cat.gif}
+        src={displayImage}
         alt={`${cat.name} overlay`}
         onPointerDown={startDrag}
         className={`pointer-events-auto select-none bg-transparent object-contain ${
