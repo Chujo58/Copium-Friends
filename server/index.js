@@ -740,19 +740,21 @@ app.get("/api/health", (_req, res) => {
 });
 
 app.get("/api/servers", (_req, res) => {
-  const list = Array.from(servers.values()).map((server) => {
-    const serialized = serializeServer(server);
-    return {
-      id: serialized.id,
-      code: serialized.code,
-      name: serialized.name,
-      type: serialized.type,
-      maxPlayers: serialized.maxPlayers,
-      membersOnline: serialized.membersOnline,
-      totalMembers: serialized.totalMembers,
-      playersLabel: `${serialized.totalMembers}/${serialized.maxPlayers}`,
-    };
-  });
+  const list = Array.from(servers.values())
+    .filter((server) => String(server.type || "").toLowerCase() === "public")
+    .map((server) => {
+      const serialized = serializeServer(server);
+      return {
+        id: serialized.id,
+        code: serialized.code,
+        name: serialized.name,
+        type: serialized.type,
+        maxPlayers: serialized.maxPlayers,
+        membersOnline: serialized.membersOnline,
+        totalMembers: serialized.totalMembers,
+        playersLabel: `${serialized.totalMembers}/${serialized.maxPlayers}`,
+      };
+    });
   res.json({ servers: list });
 });
 

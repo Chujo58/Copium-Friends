@@ -266,7 +266,7 @@ export default function Dashboard() {
                 className={`h-14 flex-1 rounded-2xl border-2 ${isDay ? "border-primary/40" : "border-surface/40"} bg-white/85 px-4 text-xl font-semibold text-slate-800 placeholder:text-slate-500 outline-none`}
               />
               <button
-                onClick={() => openCatChooser("join-by-code")}
+                onClick={handleJoinByCode}
                 className={`h-14 rounded-2xl border-2 ${isDay ? "border-primary/40 bg-primary text-white hover:text-black" : "border-surface/40 bg-surface text-black"} px-10 font-card text-2xl font-black tracking-tight hover:bg-accent `}
               >
                 Join
