@@ -60,7 +60,7 @@ export default function ChooseCat2() {
       isExiting={isExiting}
       exitDirection={exitDirection}
     >
-      <div className="space-y-4">
+      <div className="grid grid-cols-1 gap-5 md:grid-cols-3">
         {actionOptions.map((action) => (
           <button
             key={action.id}
@@ -71,6 +71,14 @@ export default function ChooseCat2() {
                 : "border-primary/30 bg-surface/35 hover:border-primary/60"
             }`}
           >
+            <div className="mb-4 flex h-52 items-center justify-center overflow-hidden rounded-xl border border-primary/25 bg-white/70">
+              <img
+                src={catOptions.find(cat => cat.name === catName)[`${action.id}Image`]}
+                alt={`${action.name} icon`}
+                className="h-full w-full object-contain"
+                draggable={false}
+              />
+            </div>
             <p className="font-card text-3xl font-black tracking-tight text-slate-900">
               {action.name}
             </p>
