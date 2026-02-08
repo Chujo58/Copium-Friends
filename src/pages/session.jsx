@@ -1005,9 +1005,11 @@ export default function Session() {
                 }}
               >
                 <img
-                  src={getCatGif(
-                    ownMember || { selectedCat, username: getStoredUsername() || "You" },
-                  )}
+                  src={
+                    isOverlayDraggingCat && catOptions.find((c) => c.id === (ownMember?.selectedCat || selectedCat))?.grabImage
+                      ? catOptions.find((c) => c.id === (ownMember?.selectedCat || selectedCat)).grabImage
+                      : getCatGif(ownMember || { selectedCat, username: getStoredUsername() || "You" })
+                  }
                   alt="Your character"
                   onPointerDown={startOverlayDrag}
                   className={`pointer-events-auto select-none bg-transparent object-contain ${
