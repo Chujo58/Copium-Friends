@@ -156,7 +156,7 @@ export default function Dashboard() {
 
   return (
     <div
-      className={`relative min-h-screen overflow-hidden px-4 py-8 transition-all duration-[2000ms] md:px-8 ${
+      className={`relative h-screen w-screen overflow-hidden px-4 py-8 transition-all duration-[2000ms] md:px-8 ${
         isDay
           ? "bg-gradient-to-t from-[#88A7BE] via-[#A6C0D2] to-[#C8D8E3]"
           : "bg-gradient-to-t from-[#0F172A] via-[#1E293B] to-[#334155]"
@@ -183,16 +183,22 @@ export default function Dashboard() {
       <div className="absolute -top-24 -left-20 h-80 w-80 rounded-full bg-white/30 blur-2xl" />
       <div className="absolute -bottom-24 -right-16 h-80 w-80 rounded-full bg-primary/25 blur-2xl" />
 
-      <div className="relative mx-auto max-w-6xl rounded-[2.5rem] border-4 border-primary/40 bg-surface/40 p-5 shadow-2xl backdrop-blur-xl md:p-8">
-        <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
-          <p className="text-lg font-semibold text-slate-800">Welcome, {username}</p>
-        </div>
-
-        <section>
-          <div className={`inline-block rounded-t-[18px] border-4 border-b-0  px-8 py-3 font-card text-3xl font-black tracking-tight ${isDay ? "border-primary/50 bg-primary text-white" : "border-surface/50 bg-surface text-slate-800"}`}>
-            Create Server
+      <div className="relative mx-auto h-full max-w-6xl flex flex-col rounded-[2.5rem] border-4 border-primary/40 bg-surface/40 shadow-2xl backdrop-blur-xl">
+        <div className="flex-1 overflow-y-auto p-5 md:p-8">
+          <div className="mb-8 flex flex-wrap items-center justify-between gap-3">
+            <div className="flex flex-col gap-1">
+              <p className="text-sm font-medium uppercase tracking-widest text-slate-600">Welcome back</p>
+              <h1 className="text-4xl font-black tracking-tight text-slate-900 md:text-5xl">
+                Hallo<span className="text-primary">, {username}</span>
+              </h1>
+            </div>
           </div>
-          <div className={`rounded-r-[24px] rounded-bl-[24px] border-4 ${isDay ? "border-primary/50 " : "border-surface/50"} bg-white/30 p-5`}>
+
+          <section>
+            <div className={`inline-block rounded-t-[18px] border-4 border-b-0  px-8 py-3 font-card text-3xl font-black tracking-tight ${isDay ? "border-primary/50 bg-primary text-white" : "border-surface/50 bg-surface text-slate-800"}`}>
+              Create Server
+            </div>
+            <div className={`rounded-r-[24px] rounded-bl-[24px] border-4 ${isDay ? "border-primary/50 " : "border-surface/50"} bg-white/30 p-5`}>
             <div className="mb-4 flex gap-3">
               <input
                 value={createServerName}
@@ -285,7 +291,7 @@ export default function Dashboard() {
               </button>
             </div>
 
-            <div className="max-h-[340px] space-y-3 overflow-auto pr-2">
+            <div className="max-h-[200px] space-y-2 overflow-auto pr-2">
               {serversLoading && (
                 <p className={`rounded-xl border-2 ${isDay ? "border-primary/30" : "border-surface/30"} bg-white/70 p-3 text-center font-semibold text-slate-700`}>
                   Loading servers...
@@ -305,17 +311,17 @@ export default function Dashboard() {
               {filteredServers.map((server) => (
                 <article
                   key={server.id}
-                  className={`flex items-center gap-3 rounded-2xl border-2 ${isDay ? "border-primary/40" : "border-surface/40"} bg-white/85 p-3`}
+                  className={`flex items-center gap-2 rounded-2xl border-2 ${isDay ? "border-primary/40" : "border-surface/40"} bg-white/85 p-2`}
                 >
-                  <div className="min-w-0 flex-1 py-1">
-                    <p className="truncate text-xl font-semibold text-slate-800">
+                  <div className="min-w-0 flex-1 py-0.5">
+                    <p className="truncate text-base font-semibold text-slate-800">
                       {server.name}
                     </p>
-                    <p className="mt-1 text-xs font-semibold uppercase tracking-wide text-slate-600">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-slate-600">
                       Code: {server.code}
                     </p>
                   </div>
-                  <p className="w-20 text-center text-xl font-bold text-slate-800">
+                  <p className="w-16 text-center text-sm font-bold text-slate-800">
                     {server.playersLabel || `${server.totalMembers}/${server.maxPlayers}`}
                   </p>
                   <button
@@ -324,7 +330,7 @@ export default function Dashboard() {
                       joiningServerId === server.id ||
                       Number(server.totalMembers) >= Number(server.maxPlayers)
                     }
-                    className={`h-12 rounded-xl border-2 border-accent/40 text-black px-8 font-card text-xl font-black tracking-tight transition ${
+                    className={`h-10 rounded-xl border-2 border-accent/40 text-black px-4 font-card text-sm font-black tracking-tight transition ${
                       joiningServerId === server.id ||
                       Number(server.totalMembers) >= Number(server.maxPlayers)
                         ? "cursor-not-allowed bg-slate-200 text-slate-500"
@@ -348,20 +354,23 @@ export default function Dashboard() {
             {actionError}
           </p>
         )}
+        </div>
 
-        <div className="mt-7 flex items-center justify-between">
-          <button
-            onClick={() => navigate("/")}
-            className={`h-14 w-44 rounded-2xl border-2 ${isDay ? "border-primary/40" : "border-surface/40"} bg-white/85 font-card text-2xl font-black tracking-tight text-slate-800 transition hover:bg-white`}
-          >
-            Back
-          </button>
-          <button
-            onClick={() => fetchServers(true)}
-            className={`h-14 w-56 rounded-2xl border-2 ${isDay ? "border-primary/40 bg-primary text-white hover:text-black" : "border-surface/40 bg-surface text-black"}  font-card text-2xl font-black tracking-tight  transition hover:bg-accent`}
-          >
-            Refresh
-          </button>
+        <div className="flex-shrink-0 border-t-2 border-primary/25 bg-surface/40 p-5 md:p-8">
+          <div className="flex items-center justify-between gap-3">
+            <button
+              onClick={() => navigate("/")}
+              className={`h-14 w-44 rounded-2xl border-2 ${isDay ? "border-primary/40" : "border-surface/40"} bg-white/85 font-card text-2xl font-black tracking-tight text-slate-800 transition hover:bg-white`}
+            >
+              Back
+            </button>
+            <button
+              onClick={() => fetchServers(true)}
+              className={`h-14 w-56 rounded-2xl border-2 ${isDay ? "border-primary/40 bg-primary text-white hover:text-black" : "border-surface/40 bg-surface text-black"}  font-card text-2xl font-black tracking-tight  transition hover:bg-accent`}
+            >
+              Refresh
+            </button>
+          </div>
         </div>
       </div>
     </div>
