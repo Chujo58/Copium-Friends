@@ -65,7 +65,7 @@ export default function ChooseCat3() {
     >
       <div className="mx-auto max-w-xl rounded-3xl border-4 border-primary/40 bg-white/70 p-5">
         <img
-          src={finalCat.gif}
+          src={catOptions.find(cat => cat.name === finalCat.name)?.[`${selectedAction}Image`] || finalCat.idleImage}
           alt={`Final cat ${finalCat.name}`}
           className="h-72 w-full rounded-2xl object-cover"
         />
