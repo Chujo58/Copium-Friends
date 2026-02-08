@@ -7,6 +7,7 @@ import { io } from "socket.io-client";
 import { MessageCircle } from "lucide-react";
 import { getServer, leaveServer } from "../lib/api";
 import { getStoredUsername } from "../lib/identity";
+import DraggableCatOverlay from "../components/DraggableCatOverlay";
 
 const KNOWN_BLOCKED_IFRAME_HOSTS = [
   "chatgpt.com",
@@ -857,47 +858,34 @@ export default function Session() {
             </div>
 
             {visibleMembers.map((member) => {
-                const isSelf = member.id === memberId;
-                return (
-                  <div
-                    key={member.id}
-                    className="absolute"
-                    style={{
-                      left: `${member.x ?? 80}px`,
-                      top: `${member.y ?? 90}px`,
-                      width: `${CAT_SIZE}px`,
-                      height: `${CAT_SIZE + 24}px`,
-                    }}
-                  >
-                    <img
-                      src={
-                        isSelf && isDraggingCat && catOptions.find((c) => c.id === member.selectedCat)?.grabImage
-                          ? catOptions.find((c) => c.id === member.selectedCat).grabImage
-                          : getCatGif(member)
-                      }
-                      alt={`${member.username} character`}
-                      onPointerDown={(event) => startDrag(member, event)}
-                      className={`select-none bg-transparent object-contain ${
-                        isSelf
-                          ? isDraggingCat
-                            ? "cursor-grabbing"
-                            : "cursor-grab"
-                          : "pointer-events-none cursor-default"
-                      }`}
-                      style={{
-                        width: `${CAT_SIZE}px`,
-                        height: `${CAT_SIZE}px`,
-                        touchAction: "none",
-                      }}
-                      draggable={false}
-                    />
-                    <p className="mx-auto mt-1 w-fit rounded-full bg-white/80 px-2 py-0.5 text-center text-xs font-black text-slate-900">
-                      {member.username}
-                      {isSelf ? " (You)" : ""}
-                    </p>
-                  </div>
-                );
-              })}
+              const isSelf = member.id === memberId;
+              return (
+                <DraggableCatOverlay
+                  key={member.id}
+                  selectedCatId={member.selectedCat}
+                  selectedAction={member.selectedAction || selectedAction}
+                  username={member.username}
+                  boundsRef={stageRef}
+                  pomodoroStorageKey={
+                    isSelf ? "pomodoro:me" : ""
+                  }
+                  pomodoroState={member.pomodoro || null}
+                  pomodoroReadOnly={!isSelf}
+                  onPomodoroStateChange={
+                    isSelf
+                      ? (state) =>
+                          socketRef.current?.emit("server:timer:update", state)
+                      : null
+                  }
+                  draggable={false}
+                  fixedPosition={{ x: member.x ?? 80, y: member.y ?? 90 }}
+                  onPointerDown={
+                    isSelf ? (event) => startDrag(member, event) : null
+                  }
+                />
+              );
+            })}
+
 
             <div className="absolute bottom-4 left-4 rounded-lg border border-white/50 bg-white/70 px-3 py-2 text-sm font-semibold text-slate-800">
               Drag only your own character. Everyone can see movement live.

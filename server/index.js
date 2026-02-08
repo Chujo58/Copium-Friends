@@ -65,6 +65,7 @@ function serializeMember(member) {
     x: Number.isFinite(member.x) ? member.x : 80,
     y: Number.isFinite(member.y) ? member.y : 90,
     joinedAt: member.joinedAt,
+    pomodoro: member.pomodoro || null,
   };
 }
 
@@ -108,10 +109,23 @@ function createMember(server, username) {
     selectedAction: null,
     x: 80,
     y: 90,
+    pomodoro: null,
     joinedAt: Date.now(),
   };
   server.members.set(member.id, member);
   return member;
+}
+
+function normalizePomodoroState(payload = {}) {
+  const phase = payload?.phase === "break" ? "break" : "focus";
+  const isRunning = Boolean(payload?.isRunning);
+  const rawSeconds = Number(payload?.secondsLeft);
+  const secondsLeft = Number.isFinite(rawSeconds)
+    ? Math.max(1, Math.min(60 * 60, Math.floor(rawSeconds)))
+    : 25 * 60;
+  const rawUpdatedAt = Number(payload?.updatedAt);
+  const updatedAt = Number.isFinite(rawUpdatedAt) ? rawUpdatedAt : Date.now();
+  return { phase, isRunning, secondsLeft, updatedAt };
 }
 
 function removeMemberFromServer(serverId, memberId) {
@@ -1653,6 +1667,18 @@ io.on("connection", (socket) => {
     if (typeof callback === "function") {
       callback({ ok: true, sharedOverlay: server.sharedOverlay });
     }
+  });
+
+  socket.on("server:timer:update", (payload = {}) => {
+    const presence = socketPresence.get(socket.id);
+    if (!presence) return;
+    const server = servers.get(presence.serverId);
+    if (!server) return;
+    const member = server.members.get(presence.memberId);
+    if (!member) return;
+
+    member.pomodoro = normalizePomodoroState(payload);
+    broadcastMembers(presence.serverId);
   });
 
   socket.on("server:chat:send", (payload = {}, callback) => {
