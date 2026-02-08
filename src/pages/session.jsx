@@ -414,8 +414,8 @@ export default function Session() {
   }, []);
 
   function getCatGif(member) {
-    // Use member.actionselected if present, otherwise fallback to selectedAction
-    const actionId = member.actionselected || selectedAction;
+    // Use member.selectedAction if present, otherwise fallback to selectedAction
+    const actionId = member.selectedAction || selectedAction;
     const cat = catOptions.find((c) => c.id === member.selectedCat) || finalCat;
     // Try to get the image for the action
     if (actionId && cat[`${actionId}Image`]) {
