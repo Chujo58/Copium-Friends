@@ -52,7 +52,7 @@ export default function ChooseCat3() {
 
   const { isDay, toggleMode } = useTheme();
   return (
-    <div className={isDay ? "bg-gradient-to-t from-[#88A7BE] via-[#A6C0D2] to-[#C8D8E3] min-h-screen" : "bg-gradient-to-t from-[#0F172A] via-[#1E293B] to-[#334155] min-h-screen"}>
+    <div className={isDay ? "bg-gradient-to-t from-[#88A7BE] via-[#A6C0D2] to-[#C8D8E3] h-screen overflow-hidden" : "bg-gradient-to-t from-[#0F172A] via-[#1E293B] to-[#334155] h-screen overflow-hidden"}>
       <button
         onClick={toggleMode}
         aria-label="Toggle light/dark mode"
@@ -72,7 +72,7 @@ export default function ChooseCat3() {
       </button>
       <CatFlowShell
       step={3}
-      title="Choose Cat 3"
+      title="All Set!"
       subtitle="Your final cat is ready."
       chooseLabel="Ready"
       onChoose={goReady}
@@ -85,12 +85,12 @@ export default function ChooseCat3() {
         <img
           src={catOptions.find(cat => cat.name === finalCat.name)?.[`${selectedAction}Image`] || finalCat.idleImage}
           alt={`Final cat ${finalCat.name}`}
-          className="h-72 w-full rounded-2xl object-cover"
+          className="h-64 w-full rounded-2xl object-contain"
         />
-        <p className="mt-4 text-center font-card text-4xl font-black tracking-tight text-slate-900">
+        <p className="mt-3 text-center font-card text-3xl font-black tracking-tight text-slate-900">
           {finalCat.name}
         </p>
-        <p className="mt-2 text-center text-lg font-semibold text-slate-700">
+        <p className="mt-1 text-center text-base font-semibold text-slate-700">
           Mode: {actionName}
         </p>
       </div>

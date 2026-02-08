@@ -18,7 +18,7 @@ export default function CatFlowShell({
     : "cat-page-enter";
 
   return (
-    <div className="relative flex min-h-screen items-center justify-center overflow-hidden px-4 py-8">
+    <div className="relative flex h-screen items-center justify-center overflow-hidden px-4 py-8">
       <div className="absolute -top-24 -left-24 h-80 w-80 rounded-full bg-white/25 blur-2xl" />
       <div className="absolute -bottom-24 -right-16 h-80 w-80 rounded-full bg-primary/25 blur-2xl" />
 

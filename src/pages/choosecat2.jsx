@@ -68,7 +68,7 @@ export default function ChooseCat2() {
       </button>
       <CatFlowShell
       step={2}
-      title="Choose Cat 2"
+      title="Choose a Mood"
       subtitle={`Pick an action style for ${catName}.`}
       chooseLabel="Choose"
       onChoose={goNext}

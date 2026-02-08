@@ -46,8 +46,8 @@ export default function ChooseCat1() {
       </button>
       <CatFlowShell
       step={1}
-      title="Choose Your Cat"
-      subtitle="Choose your character"
+      title="Who’s Joining You Today?"
+      subtitle="Don’t overthink it — they’re all good cats."
       chooseLabel="Choose"
       onChoose={goNext}
       canChoose={Boolean(selectedCat)}
