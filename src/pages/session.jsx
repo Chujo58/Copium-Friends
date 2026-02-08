@@ -852,7 +852,11 @@ export default function Session() {
                     }}
                   >
                     <img
-                      src={getCatGif(member)}
+                      src={
+                        isSelf && isDraggingCat && catOptions.find((c) => c.id === member.selectedCat)?.grabImage
+                          ? catOptions.find((c) => c.id === member.selectedCat).grabImage
+                          : getCatGif(member)
+                      }
                       alt={`${member.username} character`}
                       onPointerDown={(event) => startDrag(member, event)}
                       className={`select-none bg-transparent object-contain ${
