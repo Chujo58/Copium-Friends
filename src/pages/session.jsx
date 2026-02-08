@@ -414,9 +414,16 @@ export default function Session() {
   }, []);
 
   function getCatGif(member) {
-    const selected = catOptions.find((cat) => cat.id === member.selectedCat);
-    if (selected?.gif) return selected.gif;
-    return finalCat.gif;
+    // Use member.actionselected if present, otherwise fallback to selectedAction
+    const actionId = member.actionselected || selectedAction;
+    const cat = catOptions.find((c) => c.id === member.selectedCat) || finalCat;
+    // Try to get the image for the action
+    if (actionId && cat[`${actionId}Image`]) {
+      return cat[`${actionId}Image`];
+    }
+    // Fallback to default gif for the cat
+    if (cat.gif) return cat.gif;
+    return "/giphy.gif";
   }
 
   function normalizeUrl(rawUrl) {
