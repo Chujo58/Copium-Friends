@@ -57,7 +57,6 @@ export default function TalkCat() {
   const [isCatTalkingVisual, setIsCatTalkingVisual] = useState(false);
   const [idleTalkCatFrame, setIdleTalkCatFrame] = useState("");
   const [talkGifRunId, setTalkGifRunId] = useState(0);
-  const [textScroll, setTextScroll] = useState(100);
 
   useEffect(() => {
     try {
@@ -71,7 +70,6 @@ export default function TalkCat() {
     const container = scrollRef.current;
     if (!container) return;
     container.scrollTop = container.scrollHeight;
-    setTextScroll(100);
   }, [messages]);
 
   useEffect(() => {
@@ -388,30 +386,9 @@ export default function TalkCat() {
     ? `/talking_cat.gif?run=${talkGifRunId}`
     : idleTalkCatFrame;
 
-  function syncSliderWithScroll() {
-    const container = scrollRef.current;
-    if (!container) return;
-    const maxScroll = Math.max(container.scrollHeight - container.clientHeight, 0);
-    if (!maxScroll) {
-      setTextScroll(100);
-      return;
-    }
-    const nextValue = Math.round((container.scrollTop / maxScroll) * 100);
-    setTextScroll(nextValue);
-  }
-
-  function onTextSliderChange(event) {
-    const container = scrollRef.current;
-    const nextValue = Number(event.target.value);
-    setTextScroll(nextValue);
-    if (!container) return;
-    const maxScroll = Math.max(container.scrollHeight - container.clientHeight, 0);
-    container.scrollTop = (nextValue / 100) * maxScroll;
-  }
-
   return (
     <div
-      className={`relative min-h-screen overflow-hidden px-4 py-8 transition-all duration-[2000ms] ${
+      className={`relative h-screen overflow-hidden px-4 py-4 transition-all duration-[2000ms] ${
         isDay
           ? "bg-gradient-to-t from-[#88A7BE] via-[#A6C0D2] to-[#C8D8E3]"
           : "bg-gradient-to-t from-[#0F172A] via-[#1E293B] to-[#334155]"
@@ -420,7 +397,7 @@ export default function TalkCat() {
       <div className="absolute -top-24 -left-24 h-80 w-80 rounded-full bg-white/30 blur-2xl" />
       <div className="absolute -bottom-24 -right-16 h-80 w-80 rounded-full bg-primary/25 blur-2xl" />
 
-      <div className="relative mx-auto max-w-5xl rounded-[2.5rem] border-4 border-primary/40 bg-surface/40 p-5 shadow-2xl backdrop-blur-xl md:p-8">
+      <div className="relative mx-auto flex h-full max-w-5xl flex-col rounded-[2.5rem] border-4 border-primary/40 bg-surface/40 p-5 shadow-2xl backdrop-blur-xl md:p-8">
         <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
           <button
             onClick={() => navigate("/session")}
@@ -443,8 +420,8 @@ export default function TalkCat() {
           </button>
         </div>
 
-        <div className="grid gap-4 grid-cols-[180px_minmax(0,1fr)] md:grid-cols-[220px_minmax(0,1fr)]">
-          <div className="sticky top-4 self-start rounded-2xl border-2 border-primary/35 bg-white/80 p-4 text-center">
+        <div className="grid min-h-0 flex-1 gap-4 grid-cols-[180px_minmax(0,1fr)] md:grid-cols-[220px_minmax(0,1fr)]">
+          <div className="self-start rounded-2xl border-2 border-primary/35 bg-white/80 p-4 text-center">
             {catVisualSrc ? (
               <img
                 src={catVisualSrc}
@@ -465,48 +442,34 @@ export default function TalkCat() {
             </p>
           </div>
 
-          <div className="flex min-h-[60vh] flex-col rounded-2xl border-2 border-primary/35 bg-white/85 p-4">
-            <div
-              ref={scrollRef}
-              onScroll={syncSliderWithScroll}
-              className="min-h-[320px] flex-1 space-y-2 overflow-auto rounded-xl border border-primary/25 bg-white/75 p-3"
-            >
-              {messages.map((message) => {
-                const mine = message.role === "user";
-                return (
-                  <div key={message.id} className={`flex ${mine ? "justify-end" : "justify-start"}`}>
-                    <div
-                      className={`max-w-[85%] rounded-lg border px-3 py-2 ${
-                        mine
-                          ? "border-primary/40 bg-primary/15"
-                          : "border-slate-300 bg-white/90"
-                      }`}
-                    >
-                      <p className="text-xs font-black uppercase tracking-wide text-slate-600">
-                        {mine ? username : cat.name}
-                      </p>
-                      <p className="break-words text-sm font-semibold text-slate-900">
-                        {message.text}
-                      </p>
+          <div className="flex min-h-0 flex-col rounded-2xl border-2 border-primary/35 bg-white/85 p-4">
+            <div className="relative min-h-0 flex-1">
+              <div
+                ref={scrollRef}
+                className="h-full min-h-0 space-y-2 overflow-y-auto overflow-x-hidden overscroll-contain rounded-xl border-2 border-primary/30 bg-white/70 p-3"
+              >
+                {messages.map((message) => {
+                  const mine = message.role === "user";
+                  return (
+                    <div key={message.id} className={`flex ${mine ? "justify-end" : "justify-start"}`}>
+                      <div
+                        className={`max-w-[85%] rounded-lg border px-3 py-2 ${
+                          mine
+                            ? "border-primary/40 bg-primary/15"
+                            : "border-slate-300 bg-white/90"
+                        }`}
+                      >
+                        <p className="text-xs font-black uppercase tracking-wide text-slate-600">
+                          {mine ? username : cat.name}
+                        </p>
+                        <p className="break-words text-sm font-semibold text-slate-900">
+                          {message.text}
+                        </p>
+                      </div>
                     </div>
-                  </div>
-                );
-              })}
-            </div>
-
-            <div className="mt-3 rounded-xl border border-primary/25 bg-white/70 px-3 py-2">
-              <p className="mb-1 text-[11px] font-black uppercase tracking-wide text-slate-600">
-                Slide Text
-              </p>
-              <input
-                type="range"
-                min="0"
-                max="100"
-                value={textScroll}
-                onChange={onTextSliderChange}
-                className="w-full accent-primary"
-                aria-label="Slide through chat text"
-              />
+                  );
+                })}
+              </div>
             </div>
 
             <div className="mt-3 flex justify-center">
