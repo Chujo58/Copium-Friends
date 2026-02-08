@@ -189,7 +189,7 @@ export default function Dashboard() {
             <div className="flex flex-col gap-1">
               <p className="text-sm font-medium uppercase tracking-widest text-slate-600">Welcome back</p>
               <h1 className="text-4xl font-black tracking-tight text-slate-900 md:text-5xl">
-                Hallo<span className="text-primary">, {username}</span>
+                Hallo,<span className={`${isDay ? "text-primary" : "text-surface"}`}> {username}</span>
               </h1>
             </div>
           </div>
@@ -279,7 +279,7 @@ export default function Dashboard() {
               </button>
             </div>
 
-            <div className="mb-4 flex flex-wrap items-center gap-3 border-t-2 border-primary/25 pt-4">
+            <div className={`mb-4 flex flex-wrap items-center gap-3 border-t-2 ${isDay ? "border-primary/25" : "border-surface/25"} pt-4`}>
               <input
                 value={filterText}
                 onChange={(event) => setFilterText(event.target.value)}
@@ -356,7 +356,7 @@ export default function Dashboard() {
         )}
         </div>
 
-        <div className="flex-shrink-0 border-t-2 border-primary/25 bg-surface/40 p-5 md:p-8">
+        <div className="flex-shrink-0 border-t-2 border-primary/25 bg-surface/40 p-5 md:p-8 rounded-br-[36px] rounded-bl-[36px]">
           <div className="flex items-center justify-between gap-3">
             <button
               onClick={() => navigate("/")}

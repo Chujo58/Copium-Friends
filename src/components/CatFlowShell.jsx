@@ -1,3 +1,5 @@
+import { useTheme } from "../theme-context";
+
 export default function CatFlowShell({
   step,
   title,
@@ -11,6 +13,8 @@ export default function CatFlowShell({
   isExiting = false,
   exitDirection = "right",
 }) {
+  const { isDay } = useTheme();
+
   const animationClass = isExiting
     ? exitDirection === "left"
       ? "cat-page-exit-left"
@@ -56,9 +60,9 @@ export default function CatFlowShell({
           <button
             onClick={onChoose}
             disabled={!canChoose || isExiting}
-            className={`h-14 w-full max-w-sm rounded-2xl border-4 border-primary/50 font-card text-2xl font-bold uppercase transition ${
+            className={`h-14 w-full max-w-sm rounded-2xl border-4  font-card text-2xl font-bold uppercase transition ${
               canChoose && !isExiting
-                ? "bg-primary text-white hover:bg-accent"
+                ? isDay ?"bg-primary border-primary/50 text-white hover:bg-accent hover:text-black" : "bg-surface border-surface/50 text-black hover:bg-accent"
                 : "cursor-not-allowed bg-[#D9D9D9] text-[#767676]"
             }`}
           >

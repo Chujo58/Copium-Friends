@@ -681,6 +681,10 @@ export default function TalkCat() {
       return;
     }
 
+    if (!window.isSecureContext) {
+      setError("Microphone requires HTTPS or http://localhost to work.");
+      return;
+    }
     if (!navigator.mediaDevices?.getUserMedia) {
       setError("Microphone is not supported in this browser.");
       return;
@@ -746,14 +750,14 @@ export default function TalkCat() {
           )}
         </div>
       </button>
-      <button
+      {/* <button
         onClick={toggleMode}
         className="fixed right-6 top-6 z-50 rounded-full border-2 border-primary/40 bg-white/90 p-2 text-slate-900 shadow hover:bg-white"
         title={isDay ? "Switch to dark mode" : "Switch to light mode"}
         aria-label="Toggle light/dark mode"
       >
         {isDay ? <Moon className="h-5 w-5" /> : <Sun className="h-5 w-5" />}
-      </button>
+      </button> */}
       <div className="absolute -top-24 -left-24 h-80 w-80 rounded-full bg-white/30 blur-2xl" />
       <div className="absolute -bottom-24 -right-16 h-80 w-80 rounded-full bg-primary/25 blur-2xl" />
 

@@ -749,8 +749,8 @@ export default function Session() {
                       key={tab.id}
                       className={`flex items-center gap-2 rounded-lg border-2 px-2 py-2 transition ${
                         isSelected
-                          ? "border-primary/70 bg-primary/20"
-                          : "border-primary/35 bg-white/80 hover:bg-white"
+                          ? isDay ? "border-primary/70 bg-primary/20" : "border-surface/70 bg-surface/20"
+                          : isDay ? "border-primary/35 bg-white/80 hover:bg-white" : "border-surface/35 bg-white/80 hover:bg-white"
                       }`}
                     >
                       <button
@@ -792,7 +792,7 @@ export default function Session() {
                 <div className="flex gap-2">
                   <button
                     onClick={addNewTab}
-                    className="h-9 flex-1 rounded-lg bg-primary text-sm font-bold uppercase text-white transition hover:bg-accent"
+                    className={`h-9 flex-1 rounded-lg ${isDay ? "bg-primary text-white" : "bg-surface text-black"} text-sm font-bold uppercase  transition hover:bg-accent`}
                   >
                     Add
                   </button>
@@ -812,7 +812,7 @@ export default function Session() {
 
             <button
               onClick={() => setShowNewTabForm((prev) => !prev)}
-              className="h-11 w-full rounded-xl border-2 border-primary/40 bg-white/90 font-card text-xl font-black tracking-tight text-slate-800 transition hover:bg-white"
+              className={`h-11 w-full rounded-xl border-2 ${isDay ? "border-primary/40" : "border-surface/40"} bg-white/90 font-card text-xl font-black tracking-tight text-slate-800 transition hover:bg-white`}
             >
               + New Tab
             </button>
@@ -822,7 +822,7 @@ export default function Session() {
               disabled={!selectedTab && !sharedOverlay}
               className={`mt-3 h-11 w-full rounded-xl border-2 font-card text-lg font-black tracking-tight transition ${
                 selectedTab || sharedOverlay
-                  ? "border-primary/45 bg-primary text-white hover:bg-accent"
+                  ? isDay ? "border-primary/45 bg-primary text-white hover:bg-accent" : "border-surface/45 bg-surface text-black hover:bg-accent"
                   : "cursor-not-allowed border-slate-300 bg-slate-200 text-slate-500"
               }`}
             >
@@ -916,7 +916,7 @@ export default function Session() {
             <button
               onClick={leaveAndGoBack}
               disabled={isLeaving}
-              className="absolute bottom-4 right-4 h-12 rounded-xl border-2 border-primary/45 bg-primary px-6 font-card text-xl font-black tracking-tight text-white transition hover:bg-accent"
+              className={`absolute bottom-4 right-4 h-12 rounded-xl border-2 ${isDay ? "border-primary/45 bg-primary text-white hover:text-black" : "border-surface/45 bg-surface text-black"} px-6 font-card text-xl font-black tracking-tight  transition hover:bg-accent`}
             >
               {isLeaving ? "Leaving..." : "Back"}
             </button>
