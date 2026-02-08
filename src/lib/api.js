@@ -107,3 +107,27 @@ export function deleteFlashcardDeck(deckId, username) {
     method: "DELETE",
   });
 }
+
+export function listQuizzes(username) {
+  const query = `?username=${encodeURIComponent(username || "Guest")}`;
+  return request(`/api/quizzes${query}`);
+}
+
+export function createQuiz(payload) {
+  return request("/api/quizzes", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export function getQuiz(quizId, username) {
+  const query = `?username=${encodeURIComponent(username || "Guest")}`;
+  return request(`/api/quizzes/${encodeURIComponent(quizId)}${query}`);
+}
+
+export function submitQuiz(quizId, payload) {
+  return request(`/api/quizzes/${encodeURIComponent(quizId)}/submit`, {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}

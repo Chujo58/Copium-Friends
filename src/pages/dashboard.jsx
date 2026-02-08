@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { BookOpen, Moon, Sun } from "lucide-react";
+import { Moon, Sun } from "lucide-react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { createServer, joinServerByCode, listServers } from "../lib/api";
 import { getStoredUsername, setStoredUsername } from "../lib/identity";
@@ -186,20 +186,6 @@ export default function Dashboard() {
       <div className="relative mx-auto max-w-6xl rounded-[2.5rem] border-4 border-primary/40 bg-surface/40 p-5 shadow-2xl backdrop-blur-xl md:p-8">
         <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
           <p className="text-lg font-semibold text-slate-800">Welcome, {username}</p>
-          <button
-            onClick={() =>
-              navigate("/flashcards", {
-                state: {
-                  from: "dashboard",
-                  username,
-                },
-              })
-            }
-            className="inline-flex h-11 items-center gap-2 rounded-xl border-2 border-primary/45 bg-white/90 px-4 font-card text-lg font-black tracking-tight text-slate-800 transition hover:bg-white"
-          >
-            <BookOpen className="h-4 w-4" />
-            Flashcards
-          </button>
         </div>
 
         <section>

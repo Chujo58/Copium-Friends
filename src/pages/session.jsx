@@ -590,6 +590,22 @@ export default function Session() {
       return;
     }
 
+    if (itemId === "quizzes") {
+      navigate("/quizzes", {
+        state: {
+          from: "session",
+          username: getStoredUsername() || "Guest",
+          serverId,
+          serverName,
+          serverCode,
+          memberId,
+          selectedCat,
+          selectedAction,
+        },
+      });
+      return;
+    }
+
     if (itemId === "talk-cat") {
       navigate("/talk_cat", {
         state: {

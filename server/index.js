@@ -25,6 +25,7 @@ const servers = new Map();
 const codeToServerId = new Map();
 const socketPresence = new Map();
 const flashcardDecksByUser = new Map();
+const quizzesByUser = new Map();
 
 function randomId(prefix = "id") {
   return `${prefix}_${Math.random().toString(36).slice(2, 10)}`;
@@ -199,6 +200,20 @@ function normalizeCardCount(value, fallback = 10) {
   return Math.max(1, Math.min(50, Math.floor(numeric)));
 }
 
+function normalizeQuizType(value, fallback = "mcq") {
+  const text = String(value || fallback)
+    .trim()
+    .toLowerCase();
+  if (text === "mcq" || text === "short" || text === "long") return text;
+  return fallback;
+}
+
+function normalizeQuestionCount(value, fallback = 10) {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) return fallback;
+  return Math.max(1, Math.min(50, Math.floor(numeric)));
+}
+
 function getUserDecks(username) {
   const key = normalizeUsernameKey(username) || "guest";
   if (!flashcardDecksByUser.has(key)) {
@@ -216,6 +231,362 @@ function serializeFlashcardDeck(deck) {
     cardCountTarget: normalizeCardCount(deck.cardCountTarget, deck.cards?.length || 10),
     cardsCount: Array.isArray(deck.cards) ? deck.cards.length : 0,
     cards: Array.isArray(deck.cards) ? deck.cards : [],
+  };
+}
+
+function getUserQuizzes(username) {
+  const key = normalizeUsernameKey(username) || "guest";
+  if (!quizzesByUser.has(key)) {
+    quizzesByUser.set(key, []);
+  }
+  return quizzesByUser.get(key);
+}
+
+function serializeQuizSummary(quiz) {
+  return {
+    id: quiz.id,
+    title: quiz.title,
+    prompt: quiz.prompt,
+    type: quiz.type,
+    createdAt: quiz.createdAt,
+    questionCountTarget: normalizeQuestionCount(
+      quiz.questionCountTarget,
+      quiz.questions?.length || 10,
+    ),
+    questionsCount: Array.isArray(quiz.questions) ? quiz.questions.length : 0,
+  };
+}
+
+function serializeQuiz(quiz) {
+  return {
+    ...serializeQuizSummary(quiz),
+    questions: Array.isArray(quiz.questions) ? quiz.questions : [],
+  };
+}
+
+function parseGeminiQuizReply(payload, quizType, maxQuestions = 10) {
+  const type = normalizeQuizType(quizType, "mcq");
+  const limit = normalizeQuestionCount(maxQuestions, 10);
+  const text = payload?.candidates?.[0]?.content?.parts?.[0]?.text || "";
+  if (!text) return null;
+
+  try {
+    const parsed = JSON.parse(text);
+    const rawQuestions = Array.isArray(parsed?.questions) ? parsed.questions : [];
+    const questions = rawQuestions
+      .map((item) => {
+        const questionLimit = type === "mcq" ? 180 : 400;
+        const questionText = String(
+          item?.questionText || item?.question || item?.prompt || "",
+        )
+          .trim()
+          .slice(0, questionLimit);
+        if (!questionText) return null;
+
+        if (type === "mcq") {
+          const options = Array.isArray(item?.options)
+            ? item.options
+                .map((value) => String(value || "").trim().slice(0, 90))
+                .filter(Boolean)
+            : [];
+          if (options.length < 2) return null;
+          const deduped = Array.from(new Set(options)).slice(0, 4);
+          const normalizedOptions = deduped.length >= 2 ? deduped : options.slice(0, 2);
+          const rawIndex = Number(item?.correctOptionIndex);
+          const correctOptionIndex = Number.isFinite(rawIndex)
+            ? Math.max(0, Math.min(normalizedOptions.length - 1, Math.floor(rawIndex)))
+            : 0;
+          return {
+            id: randomId("quizq"),
+            prompt: questionText,
+            options: normalizedOptions,
+            correctOptionIndex,
+          };
+        }
+
+        const answerText = String(item?.answerText || item?.answer || "")
+          .trim()
+          .slice(0, 500);
+        if (!answerText) return null;
+        const rubricKeywords = Array.isArray(item?.rubricKeywords)
+          ? item.rubricKeywords
+              .map((keyword) => String(keyword || "").trim().toLowerCase().slice(0, 40))
+              .filter(Boolean)
+              .slice(0, 8)
+          : [];
+        return {
+          id: randomId("quizq"),
+          prompt: questionText,
+          answerText,
+          rubricKeywords,
+        };
+      })
+      .filter(Boolean)
+      .slice(0, limit);
+
+    if (questions.length === 0) return null;
+
+    return {
+      title: String(parsed?.quizTitle || parsed?.title || "")
+        .trim()
+        .slice(0, 80),
+      questions,
+    };
+  } catch (_error) {
+    return null;
+  }
+}
+
+async function requestGeminiQuiz({
+  geminiKey,
+  serverName,
+  username,
+  requestedTitle,
+  prompt,
+  type,
+  questionCount,
+}) {
+  const quizType = normalizeQuizType(type, "mcq");
+  const safeQuestionCount = normalizeQuestionCount(questionCount, 10);
+  const typePromptMap = {
+    mcq: "multiple choice questions with one clearly correct answer",
+    short: "short-answer questions with concise expected answers",
+    long: "long-answer or calculation-focused questions requiring deeper explanation",
+  };
+  const mcqFormattingRules =
+    quizType === "mcq"
+      ? [
+          "For MCQ: keep each question concise (max ~20 words).",
+          "For MCQ: each answer choice must be short (max ~8 words).",
+          "For MCQ: avoid long sentence-style options.",
+        ]
+      : [];
+
+  const systemPrompt = [
+    "You are a study assistant that creates practical quizzes.",
+    "Output ONLY valid JSON matching the response schema.",
+    `Generate ${safeQuestionCount} ${typePromptMap[quizType]}.`,
+    "Use clear wording and avoid duplicate questions.",
+    ...mcqFormattingRules,
+    `Server context: ${serverName}`,
+    `User: ${username}`,
+  ].join("\n");
+
+  const userText = [
+    requestedTitle ? `Title hint: ${requestedTitle}` : null,
+    `Topic prompt: ${prompt}`,
+    `Quiz type: ${quizType}`,
+    `Question count: ${safeQuestionCount}`,
+  ]
+    .filter(Boolean)
+    .join("\n");
+
+  const response = await fetch(
+    `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(
+      GEMINI_MODEL,
+    )}:generateContent?key=${geminiKey}`,
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        systemInstruction: {
+          parts: [{ text: systemPrompt }],
+        },
+        contents: [
+          {
+            role: "user",
+            parts: [{ text: userText }],
+          },
+        ],
+        generationConfig: {
+          responseMimeType: "application/json",
+          responseSchema: {
+            type: "OBJECT",
+            properties: {
+              quizTitle: { type: "STRING" },
+              questions: {
+                type: "ARRAY",
+                items: {
+                  type: "OBJECT",
+                  properties: {
+                    questionText: { type: "STRING" },
+                    options: {
+                      type: "ARRAY",
+                      items: { type: "STRING" },
+                    },
+                    correctOptionIndex: { type: "NUMBER" },
+                    answerText: { type: "STRING" },
+                    rubricKeywords: {
+                      type: "ARRAY",
+                      items: { type: "STRING" },
+                    },
+                  },
+                  required: ["questionText"],
+                },
+              },
+            },
+            required: ["quizTitle", "questions"],
+          },
+        },
+      }),
+    },
+  );
+
+  const payload = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    const details =
+      payload?.error?.message || payload?.error?.status || "Gemini request failed";
+    return { ok: false, error: String(details) };
+  }
+
+  const parsed = parseGeminiQuizReply(payload, quizType, safeQuestionCount);
+  if (!parsed) {
+    return {
+      ok: false,
+      error: "Gemini returned an invalid quiz response",
+    };
+  }
+
+  return {
+    ok: true,
+    title: parsed.title,
+    questions: parsed.questions,
+    type: quizType,
+    questionCountTarget: safeQuestionCount,
+  };
+}
+
+function normalizeComparableText(value) {
+  return String(value || "")
+    .toLowerCase()
+    .replace(/[^a-z0-9\s]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function toTokenSet(value) {
+  const tokens = normalizeComparableText(value)
+    .split(" ")
+    .map((token) => token.trim())
+    .filter((token) => token.length >= 3);
+  return new Set(tokens);
+}
+
+function bigramDiceCoefficient(a, b) {
+  const left = normalizeComparableText(a);
+  const right = normalizeComparableText(b);
+  if (!left || !right) return 0;
+  if (left === right) return 1;
+  if (left.length < 2 || right.length < 2) return 0;
+
+  const leftMap = new Map();
+  for (let i = 0; i < left.length - 1; i += 1) {
+    const gram = left.slice(i, i + 2);
+    leftMap.set(gram, (leftMap.get(gram) || 0) + 1);
+  }
+
+  let overlap = 0;
+  for (let i = 0; i < right.length - 1; i += 1) {
+    const gram = right.slice(i, i + 2);
+    const count = leftMap.get(gram) || 0;
+    if (count > 0) {
+      overlap += 1;
+      leftMap.set(gram, count - 1);
+    }
+  }
+
+  const total = left.length - 1 + (right.length - 1);
+  if (total <= 0) return 0;
+  return (2 * overlap) / total;
+}
+
+function scoreFreeTextAnswer(userAnswer, expectedAnswer, rubricKeywords, quizType) {
+  const userText = String(userAnswer || "").trim();
+  const expectedText = String(expectedAnswer || "").trim();
+  if (!userText) {
+    return {
+      points: 0,
+      exact: false,
+      almost: false,
+      score: 0,
+      feedback: "No answer submitted.",
+    };
+  }
+
+  const userNorm = normalizeComparableText(userText);
+  const expectedNorm = normalizeComparableText(expectedText);
+  if (!expectedNorm) {
+    return {
+      points: 0,
+      exact: false,
+      almost: false,
+      score: 0,
+      feedback: "No reference answer configured.",
+    };
+  }
+
+  const expectedTokens = toTokenSet(expectedText);
+  const userTokens = toTokenSet(userText);
+  const overlapCount = Array.from(expectedTokens).filter((token) =>
+    userTokens.has(token),
+  ).length;
+  const overlapScore = expectedTokens.size
+    ? overlapCount / expectedTokens.size
+    : userNorm.includes(expectedNorm)
+      ? 1
+      : 0;
+
+  const keywordList = Array.isArray(rubricKeywords)
+    ? rubricKeywords
+        .map((keyword) => normalizeComparableText(keyword))
+        .filter(Boolean)
+    : [];
+  const keywordHits = keywordList.filter(
+    (keyword) => keyword && userNorm.includes(keyword),
+  ).length;
+  const keywordScore = keywordList.length ? keywordHits / keywordList.length : overlapScore;
+  const stringScore = bigramDiceCoefficient(userNorm, expectedNorm);
+
+  const longAnswerPenalty =
+    quizType === "long" && userNorm.length < 40
+      ? Math.max(0.55, userNorm.length / 40)
+      : 1;
+
+  const blended =
+    (0.45 * overlapScore + 0.35 * stringScore + 0.2 * keywordScore) * longAnswerPenalty;
+
+  const exactMatch = userNorm === expectedNorm || userNorm.includes(expectedNorm);
+  const score = Math.max(0, Math.min(1, exactMatch ? 1 : blended));
+
+  const correctThreshold = quizType === "long" ? 0.55 : 0.62;
+  const almostThreshold = quizType === "long" ? 0.38 : 0.44;
+
+  if (score >= correctThreshold) {
+    return {
+      points: 1,
+      exact: true,
+      almost: false,
+      score,
+      feedback: "Correct answer.",
+    };
+  }
+  if (score >= almostThreshold) {
+    return {
+      points: 0.5,
+      exact: false,
+      almost: true,
+      score,
+      feedback: "Almost correct. You have the main idea but missed some details.",
+    };
+  }
+  return {
+    points: 0,
+    exact: false,
+    almost: false,
+    score,
+    feedback: "Not quite correct yet. Review the expected answer and try again.",
   };
 }
 
@@ -636,6 +1007,204 @@ app.delete("/api/flashcards/decks/:deckId", (req, res) => {
 
   decks.splice(index, 1);
   res.json({ ok: true });
+});
+
+app.get("/api/quizzes", (req, res) => {
+  const username = normalizeName(req.query?.username, "Guest");
+  const quizzes = getUserQuizzes(username)
+    .slice()
+    .sort((a, b) => b.createdAt - a.createdAt)
+    .map(serializeQuizSummary);
+  res.json({ quizzes });
+});
+
+app.get("/api/quizzes/:quizId", (req, res) => {
+  const quizId = String(req.params.quizId || "").trim();
+  const username = normalizeName(req.query?.username, "Guest");
+  if (!quizId) {
+    res.status(400).json({ error: "quizId is required" });
+    return;
+  }
+
+  const quizzes = getUserQuizzes(username);
+  const quiz = quizzes.find((item) => item.id === quizId);
+  if (!quiz) {
+    res.status(404).json({ error: "Quiz not found" });
+    return;
+  }
+
+  res.json({ quiz: serializeQuiz(quiz) });
+});
+
+app.post("/api/quizzes", async (req, res) => {
+  const username = normalizeName(req.body?.username, "Guest");
+  const serverName = normalizeName(req.body?.serverName, "My Server");
+  const requestedTitle = String(req.body?.title || "")
+    .trim()
+    .slice(0, 80);
+  const prompt = String(req.body?.prompt || "")
+    .trim()
+    .slice(0, 1200);
+  const type = normalizeQuizType(req.body?.type, "mcq");
+  const questionCount = normalizeQuestionCount(req.body?.questionCount, 10);
+
+  if (!prompt) {
+    res.status(400).json({ error: "Prompt is required" });
+    return;
+  }
+
+  const geminiKey = process.env.GEMINI_API_KEY;
+  if (!geminiKey) {
+    res.status(503).json({
+      error:
+        "Missing GEMINI_API_KEY on backend. Add it to server environment variables.",
+    });
+    return;
+  }
+
+  try {
+    const generated = await requestGeminiQuiz({
+      geminiKey,
+      serverName,
+      username,
+      requestedTitle,
+      prompt,
+      type,
+      questionCount,
+    });
+    if (!generated.ok) {
+      res.status(502).json({ error: generated.error });
+      return;
+    }
+
+    const quiz = {
+      id: randomId("quiz"),
+      title: requestedTitle || generated.title || "Untitled Quiz",
+      prompt,
+      type: generated.type,
+      questionCountTarget: generated.questionCountTarget,
+      createdAt: Date.now(),
+      questions: generated.questions,
+    };
+
+    const quizzes = getUserQuizzes(username);
+    quizzes.push(quiz);
+    if (quizzes.length > 80) {
+      quizzes.splice(0, quizzes.length - 80);
+    }
+
+    res.status(201).json({ quiz: serializeQuiz(quiz) });
+  } catch (error) {
+    res.status(500).json({
+      error: error.message || "Could not reach Gemini service",
+    });
+  }
+});
+
+app.post("/api/quizzes/:quizId/submit", (req, res) => {
+  const quizId = String(req.params.quizId || "").trim();
+  const username = normalizeName(req.body?.username, "Guest");
+  if (!quizId) {
+    res.status(400).json({ error: "quizId is required" });
+    return;
+  }
+
+  const quizzes = getUserQuizzes(username);
+  const quiz = quizzes.find((item) => item.id === quizId);
+  if (!quiz) {
+    res.status(404).json({ error: "Quiz not found" });
+    return;
+  }
+
+  const rawAnswers = req.body?.answers;
+  const answerMap = new Map();
+  if (Array.isArray(rawAnswers)) {
+    rawAnswers.forEach((item) => {
+      const questionId = String(item?.questionId || "").trim();
+      if (!questionId) return;
+      answerMap.set(questionId, item?.answer);
+    });
+  } else if (rawAnswers && typeof rawAnswers === "object") {
+    Object.entries(rawAnswers).forEach(([questionId, answer]) => {
+      if (!questionId) return;
+      answerMap.set(String(questionId), answer);
+    });
+  }
+
+  const quizType = normalizeQuizType(quiz.type, "mcq");
+  const results = [];
+  let totalScore = 0;
+  const maxScore = Array.isArray(quiz.questions) ? quiz.questions.length : 0;
+
+  (quiz.questions || []).forEach((question) => {
+    const submitted = answerMap.get(question.id);
+    if (quizType === "mcq") {
+      const selectedIndex = Number(submitted);
+      const expectedIndex = Number(question.correctOptionIndex);
+      const isCorrect =
+        Number.isFinite(selectedIndex) &&
+        Number.isFinite(expectedIndex) &&
+        selectedIndex === expectedIndex;
+      const points = isCorrect ? 1 : 0;
+      totalScore += points;
+      results.push({
+        questionId: question.id,
+        points,
+        maxPoints: 1,
+        isCorrect,
+        isAlmostCorrect: false,
+        feedback: isCorrect
+          ? "Correct answer."
+          : "Incorrect. Check the correct option and try again.",
+        submittedAnswer:
+          Number.isFinite(selectedIndex) && Array.isArray(question.options)
+            ? question.options[selectedIndex] || ""
+            : "",
+        correctAnswer:
+          Array.isArray(question.options) &&
+          Number.isFinite(expectedIndex) &&
+          question.options[expectedIndex]
+            ? question.options[expectedIndex]
+            : "",
+      });
+      return;
+    }
+
+    const scored = scoreFreeTextAnswer(
+      submitted,
+      question.answerText,
+      question.rubricKeywords,
+      quizType,
+    );
+    totalScore += scored.points;
+    results.push({
+      questionId: question.id,
+      points: scored.points,
+      maxPoints: 1,
+      isCorrect: scored.exact,
+      isAlmostCorrect: scored.almost,
+      feedback: scored.feedback,
+      similarity: Number(scored.score.toFixed(3)),
+      submittedAnswer: String(submitted || "").trim().slice(0, 1200),
+      correctAnswer: String(question.answerText || ""),
+    });
+  });
+
+  const percent = maxScore
+    ? Math.max(0, Math.min(100, Math.round((totalScore / maxScore) * 100)))
+    : 0;
+  const label = percent >= 85 ? "Excellent" : percent >= 70 ? "Good" : percent >= 50 ? "Fair" : "Needs Review";
+
+  res.json({
+    score: {
+      earned: Number(totalScore.toFixed(2)),
+      max: maxScore,
+      percent,
+      label,
+    },
+    results,
+    quiz: serializeQuiz(quiz),
+  });
 });
 
 app.get("/api/talk-cat/webrtc-token", async (req, res) => {

@@ -12,6 +12,8 @@ import Session from "./pages/session";
 import TalkCat from "./pages/talk_cat";
 import Flashcards from "./pages/flashcards";
 import Deck from "./pages/deck";
+import Quizzes from "./pages/quizzes";
+import Quiz from "./pages/quiz";
 
 const router = createBrowserRouter([
     { path: "/", element: <Landing /> },
@@ -23,6 +25,8 @@ const router = createBrowserRouter([
     { path: "/talk_cat", element: <TalkCat /> },
     { path: "/flashcards", element: <Flashcards /> },
     { path: "/deck/:deckId", element: <Deck /> },
+    { path: "/quizzes", element: <Quizzes /> },
+    { path: "/quiz/:quizId", element: <Quiz /> },
 ]);
 
 export default function App() {
