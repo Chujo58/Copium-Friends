@@ -40,6 +40,7 @@ export default function DraggableCatOverlay({
   pomodoroState = null,
   pomodoroReadOnly = false,
   onPomodoroStateChange = null,
+  pomodoroEmitOnTick = true,
 }) {
   const [position, setPosition] = useState(() =>
     getDefaultPosition(
@@ -217,6 +218,7 @@ export default function DraggableCatOverlay({
           externalState={pomodoroState}
           readOnly={pomodoroReadOnly}
           onStateChange={onPomodoroStateChange}
+          emitOnTick={pomodoroEmitOnTick}
         />
       </div>
       <p className="mx-auto mt-0.5 w-fit rounded-full bg-white/80 px-2 py-0.5 text-center text-xs font-black text-slate-900">

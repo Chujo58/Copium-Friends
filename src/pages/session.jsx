@@ -8,6 +8,7 @@ import { MessageCircle } from "lucide-react";
 import { getServer, leaveServer } from "../lib/api";
 import { getStoredUsername } from "../lib/identity";
 import DraggableCatOverlay from "../components/DraggableCatOverlay";
+import { getPomodoroStorageKey, getStoredPomodoroState } from "../lib/pomodoro";
 
 const KNOWN_BLOCKED_IFRAME_HOSTS = [
   "chatgpt.com",
@@ -266,6 +267,12 @@ export default function Session() {
       if (!server) return;
       setRealtimeStatus("online");
       applyServerSnapshot(server);
+      const storedPomodoro = getStoredPomodoroState(
+        getPomodoroStorageKey(serverId),
+      );
+      if (storedPomodoro) {
+        socket.emit("server:timer:update", storedPomodoro);
+      }
     });
 
     socket.on("server:members", (payload) => {
@@ -867,7 +874,7 @@ export default function Session() {
                   username={member.username}
                   boundsRef={stageRef}
                   pomodoroStorageKey={
-                    isSelf ? "pomodoro:me" : ""
+                    isSelf ? getPomodoroStorageKey(serverId) : ""
                   }
                   pomodoroState={member.pomodoro || null}
                   pomodoroReadOnly={!isSelf}
@@ -877,6 +884,7 @@ export default function Session() {
                           socketRef.current?.emit("server:timer:update", state)
                       : null
                   }
+                  pomodoroEmitOnTick={false}
                   draggable={false}
                   fixedPosition={{ x: member.x ?? 80, y: member.y ?? 90 }}
                   onPointerDown={

@@ -5,6 +5,7 @@ import { catOptions } from "./catFlowOptions";
 import { getTalkCatWebRtcToken, talkCatStt, talkCatTts, talkWithCat } from "../lib/api";
 import { getStoredUsername } from "../lib/identity";
 import DraggableCatOverlay from "../components/DraggableCatOverlay";
+import { getPomodoroStorageKey } from "../lib/pomodoro";
 import { useTheme } from "../theme-context.jsx";
 import { Sun, Moon } from "lucide-react";
 
@@ -908,7 +909,11 @@ export default function TalkCat() {
         </div>
       </div>
 
-      <DraggableCatOverlay selectedCatId={selectedCatId} username={username} />
+      <DraggableCatOverlay
+        selectedCatId={selectedCatId}
+        username={username}
+        pomodoroStorageKey={getPomodoroStorageKey()}
+      />
     </div>
   );
 }

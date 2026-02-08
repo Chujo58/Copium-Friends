@@ -4,6 +4,7 @@ import { useLocation, useNavigate } from "react-router-dom";
 import { createQuiz, listQuizzes } from "../lib/api";
 import { getStoredUsername } from "../lib/identity";
 import DraggableCatOverlay from "../components/DraggableCatOverlay";
+import { getPomodoroStorageKey } from "../lib/pomodoro";
 import { useTheme } from "../theme-context.jsx";
 
 const QUIZ_TYPES = [
@@ -378,7 +379,12 @@ export default function Quizzes() {
         )}
       </div>
 
-      <DraggableCatOverlay selectedCatId={selectedCat} selectedAction={selectedAction} username={username} />
+      <DraggableCatOverlay
+        selectedCatId={selectedCat}
+        selectedAction={selectedAction}
+        username={username}
+        pomodoroStorageKey={getPomodoroStorageKey()}
+      />
     </div>
   );
 }

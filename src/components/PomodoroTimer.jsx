@@ -23,7 +23,7 @@ function advanceTimer(currentPhase, currentSecondsLeft, elapsedSeconds) {
   return { phase, secondsLeft };
 }
 
-function deriveStateFromExternal(externalState) {
+function deriveStateFromExternal(externalState, now = Date.now()) {
   if (!externalState) return null;
   const parsedPhase = externalState.phase === "break" ? "break" : "focus";
   const parsedSeconds = Number.isFinite(externalState.secondsLeft)
@@ -32,7 +32,7 @@ function deriveStateFromExternal(externalState) {
   const parsedRunning = Boolean(externalState.isRunning);
   const parsedUpdatedAt = Number.isFinite(externalState.updatedAt)
     ? externalState.updatedAt
-    : Date.now();
+    : now;
 
   if (!parsedRunning) {
     return {
@@ -42,7 +42,7 @@ function deriveStateFromExternal(externalState) {
     };
   }
 
-  const elapsedSeconds = Math.max(0, Math.floor((Date.now() - parsedUpdatedAt) / 1000));
+  const elapsedSeconds = Math.max(0, Math.floor((now - parsedUpdatedAt) / 1000));
   const next = advanceTimer(parsedPhase, parsedSeconds, elapsedSeconds);
   return { phase: next.phase, isRunning: true, secondsLeft: next.secondsLeft };
 }
@@ -53,6 +53,7 @@ export default function PomodoroTimer({
   readOnly = false,
   externalState = null,
   onStateChange = null,
+  emitOnTick = true,
 }) {
   const shouldPersist = Boolean(storageKey);
   const derivedExternal = useMemo(
@@ -109,7 +110,21 @@ export default function PomodoroTimer({
   }, [derivedExternal]);
 
   useEffect(() => {
-    if (!isRunning) return;
+    if (!readOnly || !externalState) return;
+    if (!externalState.isRunning) return;
+    const interval = window.setInterval(() => {
+      const next = deriveStateFromExternal(externalState, Date.now());
+      if (!next) return;
+      setPhase(next.phase);
+      setIsRunning(next.isRunning);
+      setSecondsLeft(next.secondsLeft);
+    }, 1000);
+
+    return () => window.clearInterval(interval);
+  }, [externalState, readOnly]);
+
+  useEffect(() => {
+    if (!isRunning || readOnly) return;
     const interval = window.setInterval(() => {
       setSecondsLeft((prev) => {
         if (prev <= 1) {
@@ -122,7 +137,7 @@ export default function PomodoroTimer({
     }, 1000);
 
     return () => window.clearInterval(interval);
-  }, [isRunning, phase]);
+  }, [isRunning, phase, readOnly]);
 
   function formatTimer(totalSeconds) {
     const minutes = Math.floor(totalSeconds / 60);
@@ -130,14 +145,37 @@ export default function PomodoroTimer({
     return `${minutes}:${String(seconds).padStart(2, "0")}`;
   }
 
+  function emitState(next) {
+    if (!onStateChange || readOnly) return;
+    onStateChange({
+      phase: next.phase,
+      isRunning: next.isRunning,
+      secondsLeft: next.secondsLeft,
+      updatedAt: Date.now(),
+    });
+  }
+
   function handleToggleTimer() {
-    setIsRunning((prev) => !prev);
+    setIsRunning((prev) => {
+      const nextRunning = !prev;
+      if (!emitOnTick) {
+        emitState({ phase, isRunning: nextRunning, secondsLeft });
+      }
+      return nextRunning;
+    });
   }
 
   function handleResetTimer() {
     setIsRunning(false);
     setPhase("focus");
     setSecondsLeft(FOCUS_SECONDS);
+    if (!emitOnTick) {
+      emitState({
+        phase: "focus",
+        isRunning: false,
+        secondsLeft: FOCUS_SECONDS,
+      });
+    }
   }
 
   useEffect(() => {
@@ -158,14 +196,14 @@ export default function PomodoroTimer({
   }, [phase, isRunning, secondsLeft, shouldPersist, storageKey]);
 
   useEffect(() => {
-    if (!onStateChange || readOnly) return;
+    if (!onStateChange || readOnly || !emitOnTick) return;
     onStateChange({
       phase,
       isRunning,
       secondsLeft,
       updatedAt: Date.now(),
     });
-  }, [onStateChange, phase, isRunning, readOnly, secondsLeft]);
+  }, [emitOnTick, onStateChange, phase, isRunning, readOnly, secondsLeft]);
 
   const timerButtonClass = isRunning
     ? phase === "break"

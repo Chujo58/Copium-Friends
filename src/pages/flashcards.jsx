@@ -8,6 +8,7 @@ import {
 } from "../lib/api";
 import { getStoredUsername } from "../lib/identity";
 import DraggableCatOverlay from "../components/DraggableCatOverlay";
+import { getPomodoroStorageKey } from "../lib/pomodoro";
 import { useTheme } from "../theme-context.jsx";
 
 function formatDate(timestamp) {
@@ -376,7 +377,12 @@ export default function Flashcards() {
         )}
       </div>
 
-      <DraggableCatOverlay selectedCatId={selectedCat} selectedAction={selectedAction} username={username} />
+      <DraggableCatOverlay
+        selectedCatId={selectedCat}
+        selectedAction={selectedAction}
+        username={username}
+        pomodoroStorageKey={getPomodoroStorageKey()}
+      />
     </div>
   );
 }
