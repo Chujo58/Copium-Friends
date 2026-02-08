@@ -6,6 +6,7 @@ import { getTalkCatWebRtcToken, talkCatStt, talkCatTts, talkWithCat } from "../l
 import { getStoredUsername } from "../lib/identity";
 import DraggableCatOverlay from "../components/DraggableCatOverlay";
 import { useTheme } from "../theme-context.jsx";
+import { Sun, Moon } from "lucide-react";
 
 const MAX_RECORDING_MS = 15000;
 const LIVE_RECONNECT_BASE_MS = 800;
@@ -84,7 +85,7 @@ async function loadElevenLabsConversationSdk() {
 export default function TalkCat() {
   const navigate = useNavigate();
   const location = useLocation();
-  const { isDay } = useTheme();
+  const { isDay, toggleMode } = useTheme();
   const scrollRef = useRef(null);
   const audioRef = useRef(null);
   const recorderRef = useRef(null);
@@ -702,12 +703,37 @@ export default function TalkCat() {
 
   return (
     <div
-      className={`relative h-screen overflow-hidden px-4 py-4 transition-all duration-[2000ms] ${
+      className={`relative flex min-h-screen items-center justify-center overflow-hidden px-4 py-8 transition-all duration-[2000ms] ${
         isDay
           ? "bg-gradient-to-t from-[#88A7BE] via-[#A6C0D2] to-[#C8D8E3]"
           : "bg-gradient-to-t from-[#0F172A] via-[#1E293B] to-[#334155]"
       }`}
     >
+      <button
+        onClick={toggleMode}
+        aria-label="Toggle light/dark mode"
+        className={`group fixed right-12 top-12 z-50 flex h-16 w-16 cursor-pointer items-center justify-center rounded-full outline-none transition-all duration-[2000ms] ${
+          isDay
+            ? "bg-yellow-100 shadow-[0_0_80px_rgba(253,224,71,0.4)] hover:shadow-[0_0_100px_rgba(253,224,71,0.6)]"
+            : "bg-slate-100 shadow-[0_0_50px_rgba(255,255,255,0.2)] hover:shadow-[0_0_70px_rgba(255,255,255,0.4)]"
+        }`}
+      >
+        <div className="transition-transform duration-700 group-hover:rotate-12 group-active:scale-90">
+          {isDay ? (
+            <Sun className="h-8 w-8 text-yellow-400/60" />
+          ) : (
+            <Moon className="h-7 w-7 fill-slate-400/10 text-slate-400/60" />
+          )}
+        </div>
+      </button>
+      <button
+        onClick={toggleMode}
+        className="fixed right-6 top-6 z-50 rounded-full border-2 border-primary/40 bg-white/90 p-2 text-slate-900 shadow hover:bg-white"
+        title={isDay ? "Switch to dark mode" : "Switch to light mode"}
+        aria-label="Toggle light/dark mode"
+      >
+        {isDay ? <Moon className="h-5 w-5" /> : <Sun className="h-5 w-5" />}
+      </button>
       <div className="absolute -top-24 -left-24 h-80 w-80 rounded-full bg-white/30 blur-2xl" />
       <div className="absolute -bottom-24 -right-16 h-80 w-80 rounded-full bg-primary/25 blur-2xl" />
 

@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useTheme } from "../theme-context.jsx";
+import { Sun, Moon } from "lucide-react";
 import { useLocation, useNavigate } from "react-router-dom";
 import CatFlowShell from "../components/CatFlowShell";
 import { catOptions } from "./catFlowOptions";
@@ -23,9 +24,26 @@ export default function ChooseCat1() {
     }, 280);
   }
 
-  const { isDay } = useTheme();
+  const { isDay, toggleMode } = useTheme();
   return (
     <div className={isDay ? "bg-gradient-to-t from-[#88A7BE] via-[#A6C0D2] to-[#C8D8E3] min-h-screen" : "bg-gradient-to-t from-[#0F172A] via-[#1E293B] to-[#334155] min-h-screen"}>
+      <button
+        onClick={toggleMode}
+        aria-label="Toggle light/dark mode"
+        className={`group fixed right-12 top-12 z-50 flex h-16 w-16 cursor-pointer items-center justify-center rounded-full outline-none transition-all duration-[2000ms] ${
+          isDay
+            ? "bg-yellow-100 shadow-[0_0_80px_rgba(253,224,71,0.4)] hover:shadow-[0_0_100px_rgba(253,224,71,0.6)]"
+            : "bg-slate-100 shadow-[0_0_50px_rgba(255,255,255,0.2)] hover:shadow-[0_0_70px_rgba(255,255,255,0.4)]"
+        }`}
+      >
+        <div className="transition-transform duration-700 group-hover:rotate-12 group-active:scale-90">
+          {isDay ? (
+            <Sun className="h-8 w-8 text-yellow-400/60" />
+          ) : (
+            <Moon className="h-7 w-7 fill-slate-400/10 text-slate-400/60" />
+          )}
+        </div>
+      </button>
       <CatFlowShell
       step={1}
       title="Choose Your Cat"
