@@ -7,6 +7,7 @@ import {
   listFlashcardDecks,
 } from "../lib/api";
 import { getStoredUsername } from "../lib/identity";
+import DraggableCatOverlay from "../components/DraggableCatOverlay";
 import { useTheme } from "../theme-context.jsx";
 
 function formatDate(timestamp) {
@@ -374,6 +375,8 @@ export default function Flashcards() {
           </p>
         )}
       </div>
+
+      <DraggableCatOverlay selectedCatId={selectedCat} username={username} />
     </div>
   );
 }

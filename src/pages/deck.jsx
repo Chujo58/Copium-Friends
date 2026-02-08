@@ -9,6 +9,7 @@ import {
 import { useLocation, useNavigate, useParams } from "react-router-dom";
 import { getFlashcardDeck, regenerateFlashcardDeck } from "../lib/api";
 import { getStoredUsername } from "../lib/identity";
+import DraggableCatOverlay from "../components/DraggableCatOverlay";
 import { useTheme } from "../theme-context.jsx";
 
 export default function Deck() {
@@ -339,6 +340,8 @@ export default function Deck() {
           </div>
         </section>
       </div>
+
+      <DraggableCatOverlay selectedCatId={selectedCat} username={username} />
     </div>
   );
 }

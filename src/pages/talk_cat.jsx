@@ -4,6 +4,7 @@ import { useLocation, useNavigate } from "react-router-dom";
 import { catOptions } from "./catFlowOptions";
 import { talkCatStt, talkCatTts, talkWithCat } from "../lib/api";
 import { getStoredUsername } from "../lib/identity";
+import DraggableCatOverlay from "../components/DraggableCatOverlay";
 import { useTheme } from "../theme-context.jsx";
 
 const MAX_RECORDING_MS = 15000;
@@ -511,6 +512,8 @@ export default function TalkCat() {
           </div>
         </div>
       </div>
+
+      <DraggableCatOverlay selectedCatId={selectedCatId} username={username} />
     </div>
   );
 }

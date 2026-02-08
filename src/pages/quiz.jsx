@@ -3,6 +3,7 @@ import { ArrowLeft, Moon, RefreshCw, Sun } from "lucide-react";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
 import { getQuiz, submitQuiz } from "../lib/api";
 import { getStoredUsername } from "../lib/identity";
+import DraggableCatOverlay from "../components/DraggableCatOverlay";
 import { useTheme } from "../theme-context.jsx";
 
 function normalizeQuizType(value) {
@@ -360,6 +361,8 @@ export default function Quiz() {
           )}
         </form>
       </div>
+
+      <DraggableCatOverlay selectedCatId={selectedCat} username={username} />
     </div>
   );
 }
