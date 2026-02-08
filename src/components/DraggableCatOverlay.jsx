@@ -5,25 +5,28 @@ import PomodoroTimer from "./PomodoroTimer";
 const CAT_SIZE = 110;
 const LABEL_HEIGHT = 22;
 const POMODORO_HEIGHT = 70;
-const OVERLAY_HEIGHT = CAT_SIZE + LABEL_HEIGHT + POMODORO_HEIGHT;
 const DEFAULT_MARGIN = 24;
 
-function clampPosition(next, bounds) {
+function getOverlayHeight(showPomodoro, showUsername) {
+  return CAT_SIZE + (showPomodoro ? POMODORO_HEIGHT : 0) + (showUsername ? LABEL_HEIGHT : 0);
+}
+
+function clampPosition(next, bounds, overlayHeight) {
   const maxX = Math.max(0, bounds.width - CAT_SIZE);
-  const maxY = Math.max(0, bounds.height - OVERLAY_HEIGHT);
+  const maxY = Math.max(0, bounds.height - overlayHeight);
   return {
     x: Math.max(0, Math.min(next.x, maxX)),
     y: Math.max(0, Math.min(next.y, maxY)),
   };
 }
 
-function getDefaultPosition(bounds) {
+function getDefaultPosition(bounds, overlayHeight) {
   if (!bounds) {
     return { x: 0, y: 0 };
   }
   return {
     x: Math.max(0, bounds.width - CAT_SIZE - DEFAULT_MARGIN),
-    y: Math.max(0, bounds.height - OVERLAY_HEIGHT - DEFAULT_MARGIN),
+    y: Math.max(0, bounds.height - overlayHeight - DEFAULT_MARGIN),
   };
 }
 
@@ -41,12 +44,16 @@ export default function DraggableCatOverlay({
   pomodoroReadOnly = false,
   onPomodoroStateChange = null,
   pomodoroEmitOnTick = true,
+  showPomodoro = true,
+  showUsername = true,
 }) {
+  const overlayHeight = getOverlayHeight(showPomodoro, showUsername);
   const [position, setPosition] = useState(() =>
     getDefaultPosition(
       typeof window === "undefined"
         ? null
         : { width: window.innerWidth, height: window.innerHeight },
+      overlayHeight,
     ),
   );
   const [isDragging, setIsDragging] = useState(false);
@@ -93,19 +100,19 @@ export default function DraggableCatOverlay({
     try {
       const stored = sessionStorage.getItem(storageKey);
       if (!stored) {
-        setPosition(getDefaultPosition(bounds));
+        setPosition(getDefaultPosition(bounds, overlayHeight));
         return;
       }
       const parsed = JSON.parse(stored);
       if (!Number.isFinite(parsed?.x) || !Number.isFinite(parsed?.y)) {
-        setPosition(getDefaultPosition(bounds));
+        setPosition(getDefaultPosition(bounds, overlayHeight));
         return;
       }
-      setPosition(clampPosition({ x: parsed.x, y: parsed.y }, bounds));
+      setPosition(clampPosition({ x: parsed.x, y: parsed.y }, bounds, overlayHeight));
     } catch (_error) {
-      setPosition(getDefaultPosition(bounds));
+      setPosition(getDefaultPosition(bounds, overlayHeight));
     }
-  }, [fixedPosition, storageKey]);
+  }, [fixedPosition, overlayHeight, storageKey]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -121,11 +128,11 @@ export default function DraggableCatOverlay({
     if (fixedPosition) return;
     function onResize() {
       const bounds = getBounds();
-      setPosition((prev) => clampPosition(prev, bounds));
+      setPosition((prev) => clampPosition(prev, bounds, overlayHeight));
     }
     window.addEventListener("resize", onResize);
     return () => window.removeEventListener("resize", onResize);
-  }, [fixedPosition]);
+  }, [fixedPosition, overlayHeight]);
 
   useEffect(() => {
     function handlePointerMove(event) {
@@ -135,7 +142,7 @@ export default function DraggableCatOverlay({
         x: event.clientX - bounds.left - dragRef.current.offsetX,
         y: event.clientY - bounds.top - dragRef.current.offsetY,
       };
-      setPosition(clampPosition(next, bounds));
+      setPosition(clampPosition(next, bounds, overlayHeight));
     }
 
     function stopDrag() {
@@ -152,7 +159,7 @@ export default function DraggableCatOverlay({
       window.removeEventListener("pointerup", stopDrag);
       window.removeEventListener("pointercancel", stopDrag);
     };
-  }, []);
+  }, [overlayHeight]);
 
   function startDrag(event) {
     if (!draggable) return;
@@ -178,7 +185,7 @@ export default function DraggableCatOverlay({
   const grabImage = cat.grabImage;
   const displayImage = isDragging && grabImage ? grabImage : (actionImage || cat.gif);
   const resolvedPosition = fixedPosition
-    ? clampPosition(fixedPosition, getBounds())
+    ? clampPosition(fixedPosition, getBounds(), overlayHeight)
     : position;
 
   return (
@@ -188,7 +195,7 @@ export default function DraggableCatOverlay({
         left: `${resolvedPosition.x}px`,
         top: `${resolvedPosition.y}px`,
         width: `${CAT_SIZE}px`,
-        height: `${OVERLAY_HEIGHT}px`,
+        height: `${overlayHeight}px`,
       }}
     >
       <img
@@ -209,21 +216,25 @@ export default function DraggableCatOverlay({
         }}
         draggable={false}
       />
-      <div
-        className="pointer-events-auto mx-auto mt-1 flex flex-col items-center gap-1"
-        style={{ width: `${CAT_SIZE}px` }}
-      >
-        <PomodoroTimer
-          storageKey={pomodoroStorageKey}
-          externalState={pomodoroState}
-          readOnly={pomodoroReadOnly}
-          onStateChange={onPomodoroStateChange}
-          emitOnTick={pomodoroEmitOnTick}
-        />
-      </div>
-      <p className="mx-auto mt-0.5 w-fit rounded-full bg-white/80 px-2 py-0.5 text-center text-xs font-black text-slate-900">
-        {username || "You"}
-      </p>
+      {showPomodoro && (
+        <div
+          className="pointer-events-auto mx-auto mt-1 flex flex-col items-center gap-1"
+          style={{ width: `${CAT_SIZE}px` }}
+        >
+          <PomodoroTimer
+            storageKey={pomodoroStorageKey}
+            externalState={pomodoroState}
+            readOnly={pomodoroReadOnly}
+            onStateChange={onPomodoroStateChange}
+            emitOnTick={pomodoroEmitOnTick}
+          />
+        </div>
+      )}
+      {showUsername && (
+        <p className="mx-auto mt-0.5 w-fit rounded-full bg-white/80 px-2 py-0.5 text-center text-xs font-black text-slate-900">
+          {username || "You"}
+        </p>
+      )}
     </div>
   );
 }

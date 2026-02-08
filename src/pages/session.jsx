@@ -622,6 +622,20 @@ export default function Session() {
       return;
     }
 
+    if (itemId === "chatbot") {
+      navigate("/chatbot", {
+        state: {
+          serverId,
+          serverName,
+          serverCode,
+          memberId,
+          selectedCat,
+          selectedAction,
+        },
+      });
+      return;
+    }
+
     if (itemId === "talk-cat") {
       navigate("/talk_cat", {
         state: {

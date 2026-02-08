@@ -10,6 +10,7 @@ import ChooseCat2 from "./pages/choosecat2";
 import ChooseCat3 from "./pages/choosecat3";
 import Session from "./pages/session";
 import TalkCat from "./pages/talk_cat";
+import Chatbot from "./pages/chatbot";
 import Flashcards from "./pages/flashcards";
 import Deck from "./pages/deck";
 import Quizzes from "./pages/quizzes";
@@ -22,6 +23,7 @@ const router = createBrowserRouter([
     { path: "/choosecat2", element: <ChooseCat2 /> },
     { path: "/choosecat3", element: <ChooseCat3 /> },
     { path: "/session", element: <Session /> },
+    { path: "/chatbot", element: <Chatbot /> },
     { path: "/talk_cat", element: <TalkCat /> },
     { path: "/flashcards", element: <Flashcards /> },
     { path: "/deck/:deckId", element: <Deck /> },
