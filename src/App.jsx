@@ -10,6 +10,8 @@ import ChooseCat2 from "./pages/choosecat2";
 import ChooseCat3 from "./pages/choosecat3";
 import Session from "./pages/session";
 import TalkCat from "./pages/talk_cat";
+import Flashcards from "./pages/flashcards";
+import Deck from "./pages/deck";
 
 const router = createBrowserRouter([
     { path: "/", element: <Landing /> },
@@ -19,6 +21,8 @@ const router = createBrowserRouter([
     { path: "/choosecat3", element: <ChooseCat3 /> },
     { path: "/session", element: <Session /> },
     { path: "/talk_cat", element: <TalkCat /> },
+    { path: "/flashcards", element: <Flashcards /> },
+    { path: "/deck/:deckId", element: <Deck /> },
 ]);
 
 export default function App() {

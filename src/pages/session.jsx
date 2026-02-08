@@ -34,8 +34,15 @@ export default function Session() {
   const location = useLocation();
   const { isDay } = useTheme();
 
-  const selectedCat = location.state?.selectedCat || catOptions[0].id;
-  const selectedAction = location.state?.selectedAction || actionOptions[0].id;
+  const selectedCat =
+    location.state?.selectedCat ||
+    sessionStorage.getItem("activeSelectedCat") ||
+    sessionStorage.getItem("selectedCatId") ||
+    catOptions[0].id;
+  const selectedAction =
+    location.state?.selectedAction ||
+    sessionStorage.getItem("activeSelectedAction") ||
+    actionOptions[0].id;
   const initialServerName = (() => {
     const fromState = location.state?.serverName?.trim();
     if (fromState) return fromState;
@@ -121,6 +128,29 @@ export default function Session() {
     [memberId, members],
   );
 
+  const visibleMembers = useMemo(() => {
+    const onlineMembers = members.filter((member) => member.online);
+    if (!memberId) return onlineMembers;
+
+    const ownOnline = onlineMembers.some((member) => member.id === memberId);
+    if (ownOnline) return onlineMembers;
+
+    const ownAnyState = members.find((member) => member.id === memberId);
+    if (ownAnyState) return [...onlineMembers, ownAnyState];
+
+    return [
+      ...onlineMembers,
+      {
+        id: memberId,
+        username: getStoredUsername() || "You",
+        online: false,
+        selectedCat,
+        x: 80,
+        y: 90,
+      },
+    ];
+  }, [memberId, members, selectedCat]);
+
   const selectedTab = useMemo(() => {
     if (!selectedTabId) return null;
     return customTabs.find((tab) => String(tab.id) === String(selectedTabId)) || null;
@@ -156,10 +186,15 @@ export default function Session() {
       if (memberId) sessionStorage.setItem("activeMemberId", memberId);
       if (serverName) sessionStorage.setItem("activeServerName", serverName);
       if (serverCode) sessionStorage.setItem("activeServerCode", serverCode);
+      if (selectedCat) {
+        sessionStorage.setItem("activeSelectedCat", selectedCat);
+        sessionStorage.setItem("selectedCatId", selectedCat);
+      }
+      if (selectedAction) sessionStorage.setItem("activeSelectedAction", selectedAction);
     } catch (error) {
       // Ignore storage errors.
     }
-  }, [memberId, serverCode, serverId, serverName]);
+  }, [memberId, selectedAction, selectedCat, serverCode, serverId, serverName]);
 
   function applyServerSnapshot(server) {
     if (!server) return;
@@ -539,17 +574,34 @@ export default function Session() {
   }
 
   function handleSidebarAction(itemId) {
-    if (itemId !== "talk-cat") return;
-    navigate("/talk_cat", {
-      state: {
-        serverId,
-        serverName,
-        serverCode,
-        memberId,
-        selectedCat,
-        selectedAction,
-      },
-    });
+    if (itemId === "flashcards") {
+      navigate("/flashcards", {
+        state: {
+          from: "session",
+          username: getStoredUsername() || "Guest",
+          serverId,
+          serverName,
+          serverCode,
+          memberId,
+          selectedCat,
+          selectedAction,
+        },
+      });
+      return;
+    }
+
+    if (itemId === "talk-cat") {
+      navigate("/talk_cat", {
+        state: {
+          serverId,
+          serverName,
+          serverCode,
+          memberId,
+          selectedCat,
+          selectedAction,
+        },
+      });
+    }
   }
 
   return (
@@ -763,9 +815,7 @@ export default function Session() {
               </p>
             </div>
 
-            {members
-              .filter((member) => member.online)
-              .map((member) => {
+            {visibleMembers.map((member) => {
                 const isSelf = member.id === memberId;
                 return (
                   <div

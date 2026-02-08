@@ -24,6 +24,7 @@ app.use(express.json({ limit: "25mb" }));
 const servers = new Map();
 const codeToServerId = new Map();
 const socketPresence = new Map();
+const flashcardDecksByUser = new Map();
 
 function randomId(prefix = "id") {
   return `${prefix}_${Math.random().toString(36).slice(2, 10)}`;
@@ -159,6 +160,153 @@ function normalizeToolsArray(tools) {
     .map((item) => String(item || "").trim())
     .filter(Boolean)
     .slice(0, 5);
+}
+
+function parseFlashcardDeckReply(payload, maxCards = 50) {
+  const limit = Math.max(1, Math.min(50, Math.floor(Number(maxCards) || 10)));
+  const text = payload?.candidates?.[0]?.content?.parts?.[0]?.text || "";
+  if (!text) return null;
+  try {
+    const parsed = JSON.parse(text);
+    const cards = Array.isArray(parsed?.cards)
+      ? parsed.cards
+          .map((card) => ({
+            question: String(card?.question || "")
+              .trim()
+              .slice(0, 240),
+            answer: String(card?.answer || "")
+              .trim()
+              .slice(0, 500),
+          }))
+          .filter((card) => card.question && card.answer)
+          .slice(0, limit)
+      : [];
+    if (cards.length === 0) return null;
+    return {
+      deckTitle: String(parsed?.deckTitle || "")
+        .trim()
+        .slice(0, 80),
+      cards,
+    };
+  } catch (_error) {
+    return null;
+  }
+}
+
+function normalizeCardCount(value, fallback = 10) {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) return fallback;
+  return Math.max(1, Math.min(50, Math.floor(numeric)));
+}
+
+function getUserDecks(username) {
+  const key = normalizeUsernameKey(username) || "guest";
+  if (!flashcardDecksByUser.has(key)) {
+    flashcardDecksByUser.set(key, []);
+  }
+  return flashcardDecksByUser.get(key);
+}
+
+function serializeFlashcardDeck(deck) {
+  return {
+    id: deck.id,
+    title: deck.title,
+    prompt: deck.prompt,
+    createdAt: deck.createdAt,
+    cardCountTarget: normalizeCardCount(deck.cardCountTarget, deck.cards?.length || 10),
+    cardsCount: Array.isArray(deck.cards) ? deck.cards.length : 0,
+    cards: Array.isArray(deck.cards) ? deck.cards : [],
+  };
+}
+
+async function requestGeminiFlashcards({
+  geminiKey,
+  serverName,
+  username,
+  requestedTitle,
+  prompt,
+  cardCount,
+}) {
+  const safeCount = normalizeCardCount(cardCount, 10);
+  const systemPrompt = [
+    "You are a study assistant that creates high-quality flashcards.",
+    "Output ONLY valid JSON matching the response schema.",
+    "Create clear and concise cards with one fact/concept per card.",
+    "Avoid duplicates and avoid cards that are too vague.",
+    `Generate up to ${safeCount} cards.`,
+    `Server context: ${serverName}`,
+    `User: ${username}`,
+  ].join("\n");
+
+  const userText = requestedTitle
+    ? `Deck title hint: ${requestedTitle}\nTopic prompt: ${prompt}\nTarget cards: ${safeCount}`
+    : `Topic prompt: ${prompt}\nTarget cards: ${safeCount}`;
+
+  const response = await fetch(
+    `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(
+      GEMINI_MODEL,
+    )}:generateContent?key=${geminiKey}`,
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        systemInstruction: {
+          parts: [{ text: systemPrompt }],
+        },
+        contents: [
+          {
+            role: "user",
+            parts: [{ text: userText }],
+          },
+        ],
+        generationConfig: {
+          responseMimeType: "application/json",
+          responseSchema: {
+            type: "OBJECT",
+            properties: {
+              deckTitle: { type: "STRING" },
+              cards: {
+                type: "ARRAY",
+                items: {
+                  type: "OBJECT",
+                  properties: {
+                    question: { type: "STRING" },
+                    answer: { type: "STRING" },
+                  },
+                  required: ["question", "answer"],
+                },
+              },
+            },
+            required: ["deckTitle", "cards"],
+          },
+        },
+      }),
+    },
+  );
+
+  const payload = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    const details =
+      payload?.error?.message || payload?.error?.status || "Gemini request failed";
+    return { ok: false, error: String(details) };
+  }
+
+  const parsed = parseFlashcardDeckReply(payload, safeCount);
+  if (!parsed) {
+    return {
+      ok: false,
+      error: "Gemini returned an invalid flashcard deck response",
+    };
+  }
+
+  return {
+    ok: true,
+    deckTitle: parsed.deckTitle,
+    cards: parsed.cards,
+    cardCountTarget: safeCount,
+  };
 }
 
 function parseGeminiStructuredReply(payload) {
@@ -320,6 +468,173 @@ app.post("/api/servers/leave", (req, res) => {
   }
 
   broadcastMembers(serverId);
+  res.json({ ok: true });
+});
+
+app.get("/api/flashcards/decks", (req, res) => {
+  const username = normalizeName(req.query?.username, "Guest");
+  const decks = getUserDecks(username)
+    .slice()
+    .sort((a, b) => b.createdAt - a.createdAt)
+    .map(serializeFlashcardDeck);
+  res.json({ decks });
+});
+
+app.get("/api/flashcards/decks/:deckId", (req, res) => {
+  const deckId = String(req.params.deckId || "").trim();
+  const username = normalizeName(req.query?.username, "Guest");
+  if (!deckId) {
+    res.status(400).json({ error: "deckId is required" });
+    return;
+  }
+
+  const decks = getUserDecks(username);
+  const deck = decks.find((item) => item.id === deckId);
+  if (!deck) {
+    res.status(404).json({ error: "Deck not found" });
+    return;
+  }
+
+  res.json({ deck: serializeFlashcardDeck(deck) });
+});
+
+app.post("/api/flashcards/decks", async (req, res) => {
+  const username = normalizeName(req.body?.username, "Guest");
+  const serverName = normalizeName(req.body?.serverName, "My Server");
+  const requestedTitle = String(req.body?.title || "")
+    .trim()
+    .slice(0, 80);
+  const prompt = String(req.body?.prompt || "")
+    .trim()
+    .slice(0, 1200);
+  const cardCount = normalizeCardCount(req.body?.cardCount, 10);
+
+  if (!prompt) {
+    res.status(400).json({ error: "Prompt is required" });
+    return;
+  }
+
+  const geminiKey = process.env.GEMINI_API_KEY;
+  if (!geminiKey) {
+    res.status(503).json({
+      error:
+        "Missing GEMINI_API_KEY on backend. Add it to server environment variables.",
+    });
+    return;
+  }
+
+  try {
+    const generated = await requestGeminiFlashcards({
+      geminiKey,
+      serverName,
+      username,
+      requestedTitle,
+      prompt,
+      cardCount,
+    });
+    if (!generated.ok) {
+      res.status(502).json({ error: generated.error });
+      return;
+    }
+
+    const deck = {
+      id: randomId("deck"),
+      title: requestedTitle || generated.deckTitle || "Untitled Deck",
+      prompt,
+      createdAt: Date.now(),
+      cardCountTarget: generated.cardCountTarget,
+      cards: generated.cards.map((card) => ({
+        id: randomId("card"),
+        question: card.question,
+        answer: card.answer,
+      })),
+    };
+
+    const decks = getUserDecks(username);
+    decks.push(deck);
+    if (decks.length > 60) {
+      decks.splice(0, decks.length - 60);
+    }
+
+    res.status(201).json({ deck: serializeFlashcardDeck(deck) });
+  } catch (error) {
+    res.status(500).json({
+      error: error.message || "Could not reach Gemini service",
+    });
+  }
+});
+
+app.post("/api/flashcards/decks/:deckId/regenerate", async (req, res) => {
+  const deckId = String(req.params.deckId || "").trim();
+  const username = normalizeName(req.body?.username, "Guest");
+  const cardCount = normalizeCardCount(req.body?.cardCount, 10);
+  if (!deckId) {
+    res.status(400).json({ error: "deckId is required" });
+    return;
+  }
+
+  const decks = getUserDecks(username);
+  const deck = decks.find((item) => item.id === deckId);
+  if (!deck) {
+    res.status(404).json({ error: "Deck not found" });
+    return;
+  }
+
+  const geminiKey = process.env.GEMINI_API_KEY;
+  if (!geminiKey) {
+    res.status(503).json({
+      error:
+        "Missing GEMINI_API_KEY on backend. Add it to server environment variables.",
+    });
+    return;
+  }
+
+  try {
+    const generated = await requestGeminiFlashcards({
+      geminiKey,
+      serverName: normalizeName(req.body?.serverName, "My Server"),
+      username,
+      requestedTitle: deck.title,
+      prompt: deck.prompt,
+      cardCount,
+    });
+    if (!generated.ok) {
+      res.status(502).json({ error: generated.error });
+      return;
+    }
+
+    deck.cardCountTarget = generated.cardCountTarget;
+    deck.cards = generated.cards.map((card) => ({
+      id: randomId("card"),
+      question: card.question,
+      answer: card.answer,
+    }));
+    deck.updatedAt = Date.now();
+
+    res.json({ deck: serializeFlashcardDeck(deck) });
+  } catch (error) {
+    res.status(500).json({
+      error: error.message || "Could not reach Gemini service",
+    });
+  }
+});
+
+app.delete("/api/flashcards/decks/:deckId", (req, res) => {
+  const deckId = String(req.params.deckId || "").trim();
+  const username = normalizeName(req.query?.username || req.body?.username, "Guest");
+  if (!deckId) {
+    res.status(400).json({ error: "deckId is required" });
+    return;
+  }
+
+  const decks = getUserDecks(username);
+  const index = decks.findIndex((deck) => deck.id === deckId);
+  if (index === -1) {
+    res.status(404).json({ error: "Deck not found" });
+    return;
+  }
+
+  decks.splice(index, 1);
   res.json({ ok: true });
 });
 

@@ -76,3 +76,34 @@ export function talkCatStt(payload) {
     body: JSON.stringify(payload),
   });
 }
+
+export function listFlashcardDecks(username) {
+  const query = `?username=${encodeURIComponent(username || "Guest")}`;
+  return request(`/api/flashcards/decks${query}`);
+}
+
+export function createFlashcardDeck(payload) {
+  return request("/api/flashcards/decks", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export function getFlashcardDeck(deckId, username) {
+  const query = `?username=${encodeURIComponent(username || "Guest")}`;
+  return request(`/api/flashcards/decks/${encodeURIComponent(deckId)}${query}`);
+}
+
+export function regenerateFlashcardDeck(deckId, payload) {
+  return request(`/api/flashcards/decks/${encodeURIComponent(deckId)}/regenerate`, {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export function deleteFlashcardDeck(deckId, username) {
+  const query = `?username=${encodeURIComponent(username || "Guest")}`;
+  return request(`/api/flashcards/decks/${encodeURIComponent(deckId)}${query}`, {
+    method: "DELETE",
+  });
+}

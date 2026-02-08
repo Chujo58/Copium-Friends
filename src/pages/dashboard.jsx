@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Moon, Sun } from "lucide-react";
+import { BookOpen, Moon, Sun } from "lucide-react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { createServer, joinServerByCode, listServers } from "../lib/api";
 import { getStoredUsername, setStoredUsername } from "../lib/identity";
@@ -184,9 +184,23 @@ export default function Dashboard() {
       <div className="absolute -bottom-24 -right-16 h-80 w-80 rounded-full bg-primary/25 blur-2xl" />
 
       <div className="relative mx-auto max-w-6xl rounded-[2.5rem] border-4 border-primary/40 bg-surface/40 p-5 shadow-2xl backdrop-blur-xl md:p-8">
-        <p className="mb-5 text-lg font-semibold text-slate-800">
-          Welcome, {username}
-        </p>
+        <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
+          <p className="text-lg font-semibold text-slate-800">Welcome, {username}</p>
+          <button
+            onClick={() =>
+              navigate("/flashcards", {
+                state: {
+                  from: "dashboard",
+                  username,
+                },
+              })
+            }
+            className="inline-flex h-11 items-center gap-2 rounded-xl border-2 border-primary/45 bg-white/90 px-4 font-card text-lg font-black tracking-tight text-slate-800 transition hover:bg-white"
+          >
+            <BookOpen className="h-4 w-4" />
+            Flashcards
+          </button>
+        </div>
 
         <section>
           <div className={`inline-block rounded-t-[18px] border-4 border-b-0  px-8 py-3 font-card text-3xl font-black tracking-tight ${isDay ? "border-primary/50 bg-primary text-white" : "border-surface/50 bg-surface text-slate-800"}`}>
