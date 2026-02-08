@@ -6,6 +6,7 @@ import { getStoredUsername } from "../lib/identity";
 import { catOptions } from "./catFlowOptions";
 import DraggableCatOverlay from "../components/DraggableCatOverlay";
 import { useTheme } from "../theme-context.jsx";
+import { getPomodoroStorageKey } from "../lib/pomodoro";
 
 function toHistory(messages) {
   return messages
@@ -237,8 +238,9 @@ export default function Chatbot() {
         selectedAction={selectedAction}
         username={username}
         storageKey="chatbotOverlayPosition"
-        showPomodoro={false}
+        showPomodoro={true}
         showUsername={false}
+        pomodoroStorageKey={getPomodoroStorageKey()}
       />
     </div>
   );

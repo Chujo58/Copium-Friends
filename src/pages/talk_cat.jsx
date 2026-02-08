@@ -103,9 +103,28 @@ export default function TalkCat() {
   const activeAudioUrlRef = useRef("");
   const interruptedSpeakRef = useRef(false);
 
+  const selectedCat =
+    location.state?.selectedCat ||
+    sessionStorage.getItem("activeSelectedCat") ||
+    sessionStorage.getItem("selectedCatId") ||
+    "";
+
+  const selectedAction =
+    location.state?.selectedAction ||
+    sessionStorage.getItem("activeSelectedAction") ||
+    "";
+
   const selectedCatId =
-    location.state?.selectedCat || sessionStorage.getItem("selectedCatId") || catOptions[0].id;
-  const serverName =
+    typeof selectedCat === "string"
+      ? selectedCat
+      : selectedCat?.id || "";
+
+  const selectedActionId =
+    typeof selectedAction === "string"
+      ? selectedAction
+      : selectedAction?.id || "";
+  
+    const serverName =
     location.state?.serverName ||
     sessionStorage.getItem("activeServerName") ||
     "My Server";
@@ -911,6 +930,7 @@ export default function TalkCat() {
 
       <DraggableCatOverlay
         selectedCatId={selectedCatId}
+        selectedAction={selectedActionId}
         username={username}
         pomodoroStorageKey={getPomodoroStorageKey()}
       />
