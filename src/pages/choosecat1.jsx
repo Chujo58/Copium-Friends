@@ -41,13 +41,13 @@ export default function ChooseCat1() {
           <button
             key={cat.id}
             onClick={() => setSelectedCat(cat.id)}
-            className={`rounded-2xl border-4 p-6 text-left transition md:min-h-[370px] ${
+            className={`rounded-2xl border-4 p-6 text-left transition md:min-h-[390px] ${
               selectedCat === cat.id
                 ? "border-primary/60 bg-white/85 shadow-lg"
                 : "border-primary/30 bg-surface/35 hover:border-primary/60"
             }`}
           >
-            <div className="mb-4 flex h-48 items-center justify-center overflow-hidden rounded-xl border border-primary/25 bg-white/70 md:h-60">
+            <div className="mb-4 flex h-52 items-center justify-center overflow-hidden rounded-xl border border-primary/25 bg-white/70 md:h-64">
               <img
                 src={cat.idleImage}
                 alt={`${cat.name} idle`}
