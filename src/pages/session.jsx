@@ -104,6 +104,7 @@ export default function Session() {
     { id: "flashcards", label: "Flashcards", icon: "🗂️" },
     { id: "quizzes", label: "Quizzes", icon: "📝" },
     { id: "chatbot", label: "Chatbot", icon: "🤖" },
+    { id: "talk-cat", label: "Talk With Cat", icon: "🐱" },
   ];
 
   const finalCat = useMemo(() => {
@@ -537,6 +538,20 @@ export default function Session() {
     });
   }
 
+  function handleSidebarAction(itemId) {
+    if (itemId !== "talk-cat") return;
+    navigate("/talk_cat", {
+      state: {
+        serverId,
+        serverName,
+        serverCode,
+        memberId,
+        selectedCat,
+        selectedAction,
+      },
+    });
+  }
+
   return (
     <div
       className={`relative flex min-h-screen items-center justify-center overflow-hidden px-4 py-8 transition-all duration-[2000ms] ${
@@ -558,6 +573,7 @@ export default function Session() {
             {menuItems.map((item) => (
               <button
                 key={item.id}
+                onClick={() => handleSidebarAction(item.id)}
                 className="flex w-full items-center gap-3 rounded-xl border-2 border-primary/40 bg-white/80 px-3 py-2 text-left text-lg font-bold text-slate-800 transition hover:bg-white"
               >
                 <span className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-surface text-lg">

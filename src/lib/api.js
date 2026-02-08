@@ -50,3 +50,29 @@ export function leaveServer(payload) {
     body: JSON.stringify(payload),
   });
 }
+
+export function talkWithCat(payload) {
+  return request("/api/talk-cat/message", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export function getTalkCatWebRtcToken(agentId) {
+  const query = agentId ? `?agentId=${encodeURIComponent(agentId)}` : "";
+  return request(`/api/talk-cat/webrtc-token${query}`);
+}
+
+export function talkCatTts(payload) {
+  return request("/api/talk-cat/tts", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export function talkCatStt(payload) {
+  return request("/api/talk-cat/stt", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}

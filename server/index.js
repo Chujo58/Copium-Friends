@@ -5,6 +5,10 @@ import { Server as SocketServer } from "socket.io";
 
 const PORT = Number(process.env.PORT || 3001);
 const HOST = process.env.HOST || "0.0.0.0";
+const GEMINI_MODEL = process.env.GEMINI_MODEL || "gemini-2.5-flash";
+const ELEVENLABS_VOICE_ID =
+  process.env.ELEVENLABS_VOICE_ID || "EXAVITQu4vr4xnSDxMaL";
+const ELEVENLABS_STT_MODEL = process.env.ELEVENLABS_STT_MODEL || "scribe_v1";
 const app = express();
 const httpServer = createServer(app);
 const io = new SocketServer(httpServer, {
@@ -15,7 +19,7 @@ const io = new SocketServer(httpServer, {
 });
 
 app.use(cors({ origin: true, credentials: true }));
-app.use(express.json());
+app.use(express.json({ limit: "25mb" }));
 
 const servers = new Map();
 const codeToServerId = new Map();
@@ -129,6 +133,49 @@ function safeCoordinate(value, fallback = 0) {
   const numeric = Number(value);
   if (!Number.isFinite(numeric)) return fallback;
   return Math.max(0, Math.min(5000, numeric));
+}
+
+function sanitizeConversationHistory(history) {
+  if (!Array.isArray(history)) return [];
+  return history
+    .slice(-12)
+    .map((entry) => {
+      const role = String(entry?.role || "user").toLowerCase();
+      const text = String(entry?.text || "")
+        .trim()
+        .slice(0, 1000);
+      if (!text) return null;
+      return {
+        role: role === "cat" || role === "model" ? "model" : "user",
+        parts: [{ text }],
+      };
+    })
+    .filter(Boolean);
+}
+
+function normalizeToolsArray(tools) {
+  if (!Array.isArray(tools)) return [];
+  return tools
+    .map((item) => String(item || "").trim())
+    .filter(Boolean)
+    .slice(0, 5);
+}
+
+function parseGeminiStructuredReply(payload) {
+  const text = payload?.candidates?.[0]?.content?.parts?.[0]?.text || "";
+  if (!text) return null;
+  try {
+    const parsed = JSON.parse(text);
+    const reply = String(parsed?.reply || "").trim();
+    if (!reply) return null;
+    return {
+      reply,
+      intent: String(parsed?.intent || "general").trim() || "general",
+      tools: normalizeToolsArray(parsed?.tools),
+    };
+  } catch (_error) {
+    return null;
+  }
 }
 
 function broadcastMembers(serverId) {
@@ -274,6 +321,294 @@ app.post("/api/servers/leave", (req, res) => {
 
   broadcastMembers(serverId);
   res.json({ ok: true });
+});
+
+app.get("/api/talk-cat/webrtc-token", async (req, res) => {
+  const elevenKey = process.env.ELEVENLABS_API_KEY;
+  const agentId = String(req.query?.agentId || process.env.ELEVENLABS_AGENT_ID || "").trim();
+
+  if (!elevenKey) {
+    res.status(503).json({
+      error:
+        "Missing ELEVENLABS_API_KEY on backend. Add it to server environment variables.",
+    });
+    return;
+  }
+
+  if (!agentId) {
+    res.status(503).json({
+      error:
+        "Missing ELEVENLABS_AGENT_ID on backend. Set it in .env or pass ?agentId=...",
+    });
+    return;
+  }
+
+  try {
+    const response = await fetch(
+      `https://api.elevenlabs.io/v1/convai/conversation/token?agent_id=${encodeURIComponent(
+        agentId,
+      )}`,
+      {
+        method: "GET",
+        headers: {
+          "xi-api-key": elevenKey,
+        },
+      },
+    );
+
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      const detailMessage =
+        payload?.detail?.message ||
+        payload?.error?.message ||
+        payload?.detail ||
+        "ElevenLabs WebRTC token request failed";
+      res.status(502).json({ error: String(detailMessage) });
+      return;
+    }
+
+    const token = String(payload?.token || "").trim();
+    if (!token) {
+      res.status(502).json({ error: "No token returned by ElevenLabs" });
+      return;
+    }
+
+    res.json({ token, agentId });
+  } catch (error) {
+    res.status(500).json({
+      error: error.message || "Could not reach ElevenLabs token service",
+    });
+  }
+});
+
+app.post("/api/talk-cat/message", async (req, res) => {
+  const message = String(req.body?.message || "")
+    .trim()
+    .slice(0, 1000);
+  const serverName = normalizeName(req.body?.serverName, "My Server");
+  const username = normalizeName(req.body?.username, "Guest");
+  const catName = normalizeName(req.body?.catName, "Cat");
+  const history = sanitizeConversationHistory(req.body?.history);
+
+  if (!message) {
+    res.status(400).json({ error: "Message is required" });
+    return;
+  }
+
+  const geminiKey = process.env.GEMINI_API_KEY;
+  if (!geminiKey) {
+    res.status(503).json({
+      error:
+        "Missing GEMINI_API_KEY on backend. Add it to server environment variables.",
+    });
+    return;
+  }
+
+  const systemPrompt = [
+    `You are ${catName}, a friendly study cat companion in server "${serverName}".`,
+    `User name: ${username}.`,
+    "Reply briefly, warmly, and helpfully.",
+    "Output ONLY valid JSON matching the schema.",
+    "Always provide at least one concrete next action.",
+  ].join("\n");
+
+  const contents = [
+    ...history,
+    {
+      role: "user",
+      parts: [{ text: message }],
+    },
+  ];
+
+  try {
+    const response = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(
+        GEMINI_MODEL,
+      )}:generateContent?key=${geminiKey}`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          systemInstruction: {
+            parts: [{ text: systemPrompt }],
+          },
+          contents,
+          generationConfig: {
+            responseMimeType: "application/json",
+            responseSchema: {
+              type: "OBJECT",
+              properties: {
+                reply: { type: "STRING" },
+                intent: { type: "STRING" },
+                tools: {
+                  type: "ARRAY",
+                  items: { type: "STRING" },
+                },
+              },
+              required: ["reply", "intent", "tools"],
+            },
+          },
+        }),
+      },
+    );
+
+    const payload = await response.json();
+    if (!response.ok) {
+      const details =
+        payload?.error?.message || payload?.error?.status || "Gemini request failed";
+      res.status(502).json({ error: details });
+      return;
+    }
+
+    const parsed = parseGeminiStructuredReply(payload);
+    if (!parsed) {
+      res.status(502).json({
+        error: "Gemini returned an invalid structured response",
+      });
+      return;
+    }
+
+    res.json(parsed);
+  } catch (error) {
+    res.status(500).json({
+      error: error.message || "Could not reach Gemini service",
+    });
+  }
+});
+
+app.post("/api/talk-cat/tts", async (req, res) => {
+  const text = String(req.body?.text || "")
+    .trim()
+    .slice(0, 1200);
+  const voiceId = String(req.body?.voiceId || ELEVENLABS_VOICE_ID).trim();
+
+  if (!text) {
+    res.status(400).json({ error: "Text is required for TTS" });
+    return;
+  }
+
+  const elevenKey = process.env.ELEVENLABS_API_KEY;
+  if (!elevenKey) {
+    res.status(503).json({
+      error:
+        "Missing ELEVENLABS_API_KEY on backend. Add it to server environment variables.",
+    });
+    return;
+  }
+
+  try {
+    const response = await fetch(
+      `https://api.elevenlabs.io/v1/text-to-speech/${encodeURIComponent(
+        voiceId,
+      )}`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "xi-api-key": elevenKey,
+        },
+        body: JSON.stringify({
+          text,
+          model_id: "eleven_multilingual_v2",
+          voice_settings: {
+            stability: 0.45,
+            similarity_boost: 0.75,
+          },
+        }),
+      },
+    );
+
+    if (!response.ok) {
+      const errorBody = await response.text();
+      res.status(502).json({
+        error: errorBody || "ElevenLabs TTS request failed",
+      });
+      return;
+    }
+
+    const audioBuffer = Buffer.from(await response.arrayBuffer());
+    res.json({
+      audioBase64: audioBuffer.toString("base64"),
+      mimeType: "audio/mpeg",
+    });
+  } catch (error) {
+    res.status(500).json({
+      error: error.message || "Could not reach ElevenLabs service",
+    });
+  }
+});
+
+app.post("/api/talk-cat/stt", async (req, res) => {
+  const audioBase64 = String(req.body?.audioBase64 || "").trim();
+  const mimeType = String(req.body?.mimeType || "audio/webm").trim();
+  const elevenKey = process.env.ELEVENLABS_API_KEY;
+
+  if (!audioBase64) {
+    res.status(400).json({ error: "audioBase64 is required" });
+    return;
+  }
+  if (!elevenKey) {
+    res.status(503).json({
+      error:
+        "Missing ELEVENLABS_API_KEY on backend. Add it to server environment variables.",
+    });
+    return;
+  }
+
+  try {
+    const audioBuffer = Buffer.from(audioBase64, "base64");
+    if (!audioBuffer.length) {
+      res.status(400).json({ error: "Invalid audio payload" });
+      return;
+    }
+
+    const extension = mimeType.includes("wav")
+      ? "wav"
+      : mimeType.includes("mpeg")
+        ? "mp3"
+        : "webm";
+
+    const form = new FormData();
+    form.append("model_id", ELEVENLABS_STT_MODEL);
+    form.append(
+      "file",
+      new Blob([audioBuffer], { type: mimeType }),
+      `recording.${extension}`,
+    );
+
+    const response = await fetch("https://api.elevenlabs.io/v1/speech-to-text", {
+      method: "POST",
+      headers: {
+        "xi-api-key": elevenKey,
+      },
+      body: form,
+    });
+
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      const detailMessage =
+        payload?.detail?.message ||
+        payload?.error?.message ||
+        payload?.detail ||
+        "ElevenLabs STT request failed";
+      res.status(502).json({ error: String(detailMessage) });
+      return;
+    }
+
+    const text = String(payload?.text || payload?.transcript || "").trim();
+    if (!text) {
+      res.status(502).json({ error: "No transcript returned by ElevenLabs STT" });
+      return;
+    }
+
+    res.json({ text });
+  } catch (error) {
+    res.status(500).json({
+      error: error.message || "Could not reach ElevenLabs STT service",
+    });
+  }
 });
 
 io.on("connection", (socket) => {
