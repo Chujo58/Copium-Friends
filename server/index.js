@@ -4,6 +4,7 @@ import { createServer } from "http";
 import { Server as SocketServer } from "socket.io";
 
 const PORT = Number(process.env.PORT || 3001);
+const HOST = process.env.HOST || "0.0.0.0";
 const app = express();
 const httpServer = createServer(app);
 const io = new SocketServer(httpServer, {
@@ -60,8 +61,21 @@ function serializeMember(member) {
   };
 }
 
+function serializeChatMessage(message) {
+  return {
+    id: message.id,
+    memberId: message.memberId,
+    username: message.username,
+    text: message.text,
+    createdAt: message.createdAt,
+  };
+}
+
 function serializeServer(server) {
   const members = Array.from(server.members.values()).map(serializeMember);
+  const chatMessages = Array.isArray(server.chatMessages)
+    ? server.chatMessages.map(serializeChatMessage)
+    : [];
   return {
     id: server.id,
     code: server.code,
@@ -71,6 +85,8 @@ function serializeServer(server) {
     createdAt: server.createdAt,
     membersOnline: members.filter((member) => member.online).length,
     totalMembers: members.length,
+    sharedOverlay: server.sharedOverlay || null,
+    chatMessages,
     members,
   };
 }
@@ -193,6 +209,8 @@ app.post("/api/servers", (req, res) => {
     name,
     type,
     maxPlayers,
+    sharedOverlay: null,
+    chatMessages: [],
     members: new Map(),
     createdAt: Date.now(),
   };
@@ -306,6 +324,102 @@ io.on("connection", (socket) => {
     broadcastMembers(presence.serverId);
   });
 
+  socket.on("server:overlay:set", (payload = {}, callback) => {
+    const presence = socketPresence.get(socket.id);
+    if (!presence) {
+      if (typeof callback === "function") callback({ ok: false, error: "Not in a server" });
+      return;
+    }
+
+    const server = servers.get(presence.serverId);
+    if (!server) {
+      if (typeof callback === "function") callback({ ok: false, error: "Server not found" });
+      return;
+    }
+
+    const member = server.members.get(presence.memberId);
+    if (!member) {
+      if (typeof callback === "function") callback({ ok: false, error: "Member not found" });
+      return;
+    }
+
+    const name = normalizeName(payload?.name, "Shared Link");
+    const rawUrl = String(payload?.url || "").trim();
+    let url = "";
+    try {
+      const parsed = new URL(rawUrl);
+      if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+        throw new Error("Only http/https links are allowed");
+      }
+      url = parsed.toString();
+    } catch (error) {
+      if (typeof callback === "function") callback({ ok: false, error: "Invalid URL" });
+      return;
+    }
+
+    server.sharedOverlay = {
+      name,
+      url,
+      updatedBy: member.username,
+      updatedAt: Date.now(),
+    };
+    broadcastMembers(presence.serverId);
+
+    if (typeof callback === "function") {
+      callback({ ok: true, sharedOverlay: server.sharedOverlay });
+    }
+  });
+
+  socket.on("server:chat:send", (payload = {}, callback) => {
+    const presence = socketPresence.get(socket.id);
+    if (!presence) {
+      if (typeof callback === "function") callback({ ok: false, error: "Not in a server" });
+      return;
+    }
+
+    const server = servers.get(presence.serverId);
+    if (!server) {
+      if (typeof callback === "function") callback({ ok: false, error: "Server not found" });
+      return;
+    }
+
+    const member = server.members.get(presence.memberId);
+    if (!member) {
+      if (typeof callback === "function") callback({ ok: false, error: "Member not found" });
+      return;
+    }
+
+    const text = String(payload?.text || "").trim();
+    if (!text) {
+      if (typeof callback === "function") callback({ ok: false, error: "Message is empty" });
+      return;
+    }
+
+    const message = {
+      id: randomId("chat"),
+      memberId: member.id,
+      username: member.username,
+      text: text.slice(0, 400),
+      createdAt: Date.now(),
+    };
+
+    if (!Array.isArray(server.chatMessages)) {
+      server.chatMessages = [];
+    }
+    server.chatMessages.push(message);
+    if (server.chatMessages.length > 200) {
+      server.chatMessages.splice(0, server.chatMessages.length - 200);
+    }
+
+    io.to(roomName(presence.serverId)).emit("server:chat:message", {
+      message: serializeChatMessage(message),
+    });
+
+    if (typeof callback === "function") {
+      callback({ ok: true, message: serializeChatMessage(message) });
+    }
+  });
+
   socket.on("server:leave", (_payload = {}, callback) => {
     const presence = socketPresence.get(socket.id);
     if (!presence) {
@@ -331,6 +445,6 @@ io.on("connection", (socket) => {
   });
 });
 
-httpServer.listen(PORT, () => {
-  console.log(`Backend running on http://localhost:${PORT}`);
+httpServer.listen(PORT, HOST, () => {
+  console.log(`Backend running on http://${HOST}:${PORT}`);
 });
