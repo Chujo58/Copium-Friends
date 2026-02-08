@@ -24,7 +24,6 @@ export default function ChooseCat1() {
   }
 
   const { isDay } = useTheme();
-  console.log("isDay in ChooseCat1:", isDay);
   return (
     <div className={isDay ? "bg-gradient-to-t from-[#88A7BE] via-[#A6C0D2] to-[#C8D8E3] min-h-screen" : "bg-gradient-to-t from-[#0F172A] via-[#1E293B] to-[#334155] min-h-screen"}>
       <CatFlowShell
@@ -37,24 +36,26 @@ export default function ChooseCat1() {
       isExiting={isExiting}
       exitDirection="left"
     >
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+      <div className="grid grid-cols-1 gap-5 md:grid-cols-3">
         {catOptions.map((cat) => (
           <button
             key={cat.id}
             onClick={() => setSelectedCat(cat.id)}
-            className={`rounded-2xl border-4 p-5 text-left transition ${
+            className={`rounded-2xl border-4 p-6 text-left transition md:min-h-[370px] ${
               selectedCat === cat.id
                 ? "border-primary/60 bg-white/85 shadow-lg"
                 : "border-primary/30 bg-surface/35 hover:border-primary/60"
             }`}
           >
-            <div
-              className="mb-3 h-24 rounded-xl"
-              style={{
-                background: `linear-gradient(135deg, ${cat.accent}, #f8f0e3)`,
-              }}
-            />
-            <p className="font-card text-3xl font-black tracking-tight text-slate-900">
+            <div className="mb-4 flex h-48 items-center justify-center overflow-hidden rounded-xl border border-primary/25 bg-white/70 md:h-60">
+              <img
+                src={cat.idleImage}
+                alt={`${cat.name} idle`}
+                className="h-full w-full object-contain"
+                draggable={false}
+              />
+            </div>
+            <p className="font-card text-3xl font-black tracking-tight text-slate-900 md:text-4xl">
               {cat.name}
             </p>
           </button>

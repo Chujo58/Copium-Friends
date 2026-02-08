@@ -3,18 +3,21 @@ export const catOptions = [
     id: "amber",
     name: "Jojo",
     accent: "#E9A474",
+    idleImage: "/cats/idle/jojo_idle.png",
     gif: "/giphy.gif",
   },
   {
     id: "mint",
     name: "Mimi",
     accent: "#9FD7B9",
+    idleImage: "/cats/idle/mimi_idle.png",
     gif: "/giphy.gif",
   },
   {
     id: "slate",
     name: "Cici",
     accent: "#9FB4DA",
+    idleImage: "/cats/idle/cici_idle.png",
     gif: "/giphy.gif",
   },
 ];
